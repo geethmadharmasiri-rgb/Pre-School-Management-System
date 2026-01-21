@@ -1,0 +1,403 @@
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+}
+
+/* =========================
+   LAYOUT
+========================= */
+.ac-page-container {
+  width: 100%;
+  min-height: 100vh;
+  background-color: #7dc6ee;
+}
+
+/* =========================
+   MAIN
+========================= */
+.ac-main {
+  width: 100%;
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+}
+
+/* header */
+.ac-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 24px;
+  width: 100%;
+  text-align: center;
+}
+
+.ac-header h1 {
+  font-size: 34px;
+  font-weight: 900;
+  color: #0b2230;
+}
+
+/* =========================
+   ADD TEACHER FORM
+========================= */
+
+.ac-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Cards */
+.ac-card {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.12);
+  padding: 20px;
+}
+
+/* Card header */
+.ac-cardHeader {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.ac-cardHeader div {
+  width: 100%;
+}
+
+.ac-cardHeader h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, #059669, #10b981);
+  padding: 12px 16px;
+  border-radius: 10px;
+}
+
+.ac-cardHeader p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(11, 34, 48, 0.7);
+}
+
+/* Inputs */
+.ac-field {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ac-field label {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0b2230;
+}
+
+.ac-field input,
+.ac-select {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  outline: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  font-size: 14px;
+  color: #0b2230;
+}
+
+.ac-field input::placeholder,
+.ac-select::placeholder {
+  color: rgba(11, 34, 48, 0.5);
+}
+
+.ac-field input:focus,
+.ac-select:focus {
+  border-color: rgba(125, 198, 238, 0.5);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 3px rgba(125, 198, 238, 0.1);
+}
+
+.ac-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/csvg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 20px;
+  padding-right: 38px;
+  color: #0b2230;
+}
+
+/* Section Styling */
+.ac-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 2px solid rgba(125, 198, 238, 0.2);
+}
+
+.ac-section:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.ac-section-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0b2230;
+  margin: 0 0 16px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #43f1b3;
+  display: inline-block;
+}
+
+/* Field Row for side-by-side fields */
+.ac-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 0;
+}
+
+.ac-field-row .ac-field {
+  margin-top: 0;
+}
+
+/* Gender buttons */
+.ac-gender {
+  display: flex;
+  gap: 10px;
+  margin-top: 0;
+}
+
+.ac-gender button {
+  flex: 1;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  padding: 12px 0;
+  cursor: pointer;
+  font-weight: 700;
+  color: #0b2230;
+  transition: all 0.2s ease;
+}
+
+.ac-gender button:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(125, 198, 238, 0.3);
+}
+
+.ac-gender button.active {
+  background: #7dc6ee;
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 6px 18px rgba(125, 198, 238, 0.45);
+}
+
+/* Actions */
+.ac-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.ac-back {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  cursor: pointer;
+  font-weight: 800;
+  background: #277665;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(39, 118, 101, 0.4);
+  transition: all 0.2s ease;
+}
+
+.ac-back:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(39, 118, 101, 0.55);
+}
+
+.ac-register {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 28px;
+  cursor: pointer;
+  font-weight: 800;
+  background: #43f1b3;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(67, 241, 179, 0.4);
+  transition: all 0.2s ease;
+}
+
+.ac-register:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(67, 241, 179, 0.55);
+}
+
+.ac-register:active {
+  transform: translateY(0);
+}
+
+/* =========================
+   ICONS
+========================= */
+.icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* =========================
+   CREDENTIALS DISPLAY
+========================= */
+.credential-display {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.credential-input {
+  flex: 1;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  outline: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 600;
+  background: rgba(67, 241, 179, 0.08);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  font-size: 13px;
+  color: #0b2230;
+  font-family: "Courier New", monospace;
+}
+
+.credential-input:focus {
+  border-color: rgba(67, 241, 179, 0.5);
+  background: rgba(67, 241, 179, 0.12);
+  box-shadow: 0 0 0 3px rgba(67, 241, 179, 0.1);
+}
+
+.credential-copy {
+  border: none;
+  background: rgba(67, 241, 179, 0.3);
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.credential-copy:hover {
+  background: rgba(67, 241, 179, 0.5);
+  transform: scale(1.05);
+}
+
+.credential-copy:active {
+  transform: scale(0.95);
+}
+
+/* Regenerate Button */
+.regenerate-btn {
+  margin-top: 12px;
+  width: 100%;
+  border: 1px solid rgba(67, 241, 179, 0.5);
+  background: rgba(67, 241, 179, 0.15);
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  color: #059669;
+  transition: all 0.2s ease;
+  font-size: 13px;
+}
+
+.regenerate-btn:hover {
+  background: rgba(67, 241, 179, 0.25);
+  border-color: rgba(67, 241, 179, 0.7);
+  transform: translateY(-1px);
+}
+
+.regenerate-btn:active {
+  transform: translateY(0);
+}
+
+/* =========================
+   ICONS
+========================= */
+.icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 1024px) {
+  .ac-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ac-field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .ac-main {
+    padding: 20px;
+  }
+
+  .ac-header h1 {
+    font-size: 26px;
+  }
+
+  .ac-cardHeader {
+    grid-template-columns: 45px 1fr auto;
+  }
+
+  .ac-actions {
+    flex-direction: column;
+  }
+
+  .ac-back,
+  .ac-register {
+    width: 100%;
+  }
+
+  .ac-field-row {
+    grid-template-columns: 1fr;
+  }
+}

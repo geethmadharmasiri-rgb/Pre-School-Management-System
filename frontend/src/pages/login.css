@@ -1,0 +1,191 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: Arial, sans-serif;
+}
+
+/* Full Page */
+.login-page {
+  min-height: 100vh;
+  background-color: #7dc6ee;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+}
+
+/* MAIN BOX */
+.login-wrapper {
+  width: 100%;
+  max-width: 1200px;
+  min-height: 80vh;
+  display: flex;
+  background-color: #549595;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+/* LEFT IMAGE */
+.login-image {
+  flex: 1;
+}
+
+.login-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* RIGHT FORM */
+.login-form-section {
+  flex: 1;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 15px;
+}
+
+/* Title */
+.login-title {
+  font-size: 32px;
+  font-weight: bold;
+  text-align: center;
+  color: black;
+}
+
+.login-subtitle {
+  font-size: 13px;
+  text-align: center;
+  color: #eafafa;
+  margin-bottom: 10px;
+}
+
+/* Inputs (FULL WIDTH) */
+.login-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+}
+
+/* ✅ Remember & Forgot (UPDATED FIX) */
+.remember-forgot {
+  display: flex;
+  justify-content: space-between;   /* ✅ better spacing */
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+/* Forgot link */
+.forgot-link {
+  font-size: 13px;
+  color: white;
+  cursor: pointer;
+  white-space: nowrap;             /* ✅ keep one line */
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
+}
+
+/* Remember me */
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: white;
+  white-space: nowrap;             /* ✅ keep "Remember Me" one line */
+}
+
+.remember-me input {
+  margin: 0;
+}
+
+/* Buttons */
+.btn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.login-btn,
+.register-btn {
+  width: 60%;
+  align-self: center;
+}
+
+.login-btn {
+  background-color: #43f1b3;
+}
+
+.register-btn {
+  background-color: #277665;
+  color: white;
+}
+
+.back-btn {
+  background-color: #f39c12;
+  color: white;
+}
+
+.back-btn:hover {
+  background-color: #d68910;
+}
+
+/* Back button */
+.back-outside {
+  width: 200px;
+}
+
+/* Messages */
+.error-msg {
+  color: red;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.success-msg {
+  color: green;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .login-wrapper {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .login-image {
+    height: 250px;
+  }
+
+  .login-btn,
+  .register-btn {
+    width: 100%;
+  }
+
+  /* ✅ stack on small screens */
+  .remember-forgot {
+    justify-content: center;
+    gap: 18px;
+    flex-wrap: nowrap;
+  }
+}

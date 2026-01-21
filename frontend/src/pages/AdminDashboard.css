@@ -1,0 +1,322 @@
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+}
+
+/* =========================
+   LAYOUT
+========================= */
+.ad-container {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #7dc6ee;
+}
+
+/* =========================
+   SIDEBAR
+========================= */
+.ad-sidebar {
+  width: 260px;
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  
+  height: 100vh;
+  overflow-y: auto;
+
+  /* ✅ Sidebar gradient */
+  background: linear-gradient(180deg, #1f2937 0%, #2b3647 60%, #364152 100%);
+  color: #ffffff;
+
+  box-shadow: 6px 0 25px rgba(0, 0, 0, 0.18);
+}
+
+.ad-logo {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin: 10px 0 18px;
+  flex-shrink: 0;
+}
+
+/* menu container */
+.ad-menu {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* menu button */
+.ad-menu-item {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+
+  padding: 12px 14px;
+  border-radius: 12px;
+
+  /* ✅ default text visible */
+  color: rgba(255, 255, 255, 0.86);
+  background: transparent;
+
+  transition: all 0.2s ease;
+}
+
+.ad-menu-item .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+
+  /* ✅ icon pill background */
+  background: rgba(125, 198, 238, 0.18);
+  color: #ffffff;
+}
+
+/* ✅ hover state */
+.ad-menu-item:hover {
+  background: rgba(125, 198, 238, 0.16);
+  transform: translateX(2px);
+}
+
+/* ✅ active menu (your JSX has className="active" on Dashboard) */
+.ad-menu-item.active {
+  background: linear-gradient(135deg, rgba(125, 198, 238, 0.32), rgba(255, 255, 255, 0.08));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  color: #ffffff;
+}
+
+.ad-menu-item.active .icon {
+  background: rgba(125, 198, 238, 0.32);
+}
+
+/* ✅ Logout button */
+.ad-logout {
+  border: none;
+  cursor: pointer;
+  border-radius: 12px;
+
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+
+  background: linear-gradient(135deg, #ef4444, #ff6b6b);
+  color: #ffffff;
+
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.35);
+  transition: all 0.2s ease;
+  font-weight: 600;
+  font-size: 15px;
+  width: 100%;
+  
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.ad-logout:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 12px 30px rgba(239, 68, 68, 0.45);
+}
+
+.ad-logout:active {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+
+.ad-logout .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+
+  /* ✅ logout icon pill background */
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* =========================
+   MAIN
+========================= */
+.ad-main {
+  flex: 1;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+/* header */
+.ad-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.ad-header h1 {
+  font-size: 34px;
+  font-weight: 900;
+  color: #0b2230;
+}
+
+/* notification */
+.notification {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+.notification svg {
+  width: 22px;
+  height: 22px;
+  fill: #0b2230;
+}
+
+/* =========================
+   CARDS
+========================= */
+.ad-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.ad-card {
+  padding: 18px;
+  border-radius: 18px;
+  text-align: center;
+
+  /* ✅ glass gradient */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.48));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.12);
+  transition: transform 0.15s ease;
+}
+
+.ad-card:hover {
+  transform: translateY(-2px);
+}
+
+.ad-card h3 {
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #123345;
+}
+
+.ad-card p {
+  margin-top: 6px;
+  font-size: 26px;
+  font-weight: 900;
+  color: #0b2230;
+}
+
+/* =========================
+   ACTIVITIES
+========================= */
+.ad-activity {
+  margin-top: 28px;
+}
+
+.ad-activity h2 {
+  font-size: 26px;
+  font-weight: 900;
+  color: #0b2230;
+  margin-bottom: 12px;
+}
+
+.ad-activity ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ad-activity li {
+  padding: 14px 14px;
+  border-radius: 14px;
+
+  /* ✅ soft blue/green gradient (professional) */
+  background: linear-gradient(135deg, rgba(125, 198, 238, 0.35), rgba(255, 255, 255, 0.55));
+  border: 1px solid rgba(255, 255, 255, 0.7);
+
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.10);
+  color: #0b2230;
+  font-weight: 800;
+}
+
+/* =========================
+   ICONS
+========================= */
+.icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.icon.big svg {
+  width: 38px;
+  height: 38px;
+  margin-bottom: 8px;
+  fill: #0b2230;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 900px) {
+  .ad-container {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .ad-sidebar {
+    width: 100%;
+    box-shadow: none;
+  }
+
+  .ad-main {
+    padding: 20px;
+  }
+}

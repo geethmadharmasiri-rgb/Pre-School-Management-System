@@ -1,0 +1,84 @@
+/* GLOBAL RESET */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ROOT VARIABLES (keep light/dark support) */
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* FULL BROWSER SIZE FIX */
+html,
+body {
+  width: 100%;
+  height: 100%;
+}
+
+/* REMOVE CENTERING THAT BREAKS LAYOUT */
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+/* ROOT MUST FILL SCREEN */
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+/* LINKS */
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: #535bf2;
+}
+
+/* HEADINGS */
+h1 {
+  line-height: 1.1;
+}
+
+/* BUTTON BASE STYLE (safe) */
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+button:hover {
+  border-color: #646cff;
+}
+
+button:focus,
+button:focus-visible {
+  outline: 3px auto -webkit-focus-ring-color;
+}
+
+/* LIGHT MODE */
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+
+  a:hover {
+    color: #747bff;
+  }
+}
