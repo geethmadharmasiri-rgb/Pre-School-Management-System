@@ -11,8 +11,7 @@ const ChildManagement = () => {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     first_name: "", last_name: "", dob: "", gender: "Male",
-    address: "", medical_conditions: "", blood_type: "",
-    enrollment_date: "", program_name: "", class_id: ""
+    address: "", enrollment_date: "", program_name: "", class_id: ""
   });
   const [birthCertificate, setBirthCertificate] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -346,70 +345,6 @@ const ChildManagement = () => {
                 />
               </div>
 
-              <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ fontSize: '15px', margin: '0 0 16px 0', color: '#475569' }}>Health Information</h3>
-                <div className="ad-form-row">
-                  <div className="ad-form-group">
-                    <label>Blood Type</label>
-                    <select
-                      className="ad-input"
-                      value={formData.blood_type || ""}
-                      onChange={(e) => setFormData({ ...formData, blood_type: e.target.value })}
-                    >
-                      <option value="">Unknown</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                    </select>
-                  </div>
-                  <div className="ad-form-group">
-                    <label>Allergies</label>
-                    <input
-                      type="text"
-                      className="ad-input"
-                      value={formData.allergies || ""}
-                      onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
-                      placeholder="None"
-                    />
-                  </div>
-                </div>
-                <div className="ad-form-row">
-                  <div className="ad-form-group">
-                    <label>Medical Conditions</label>
-                    <input
-                      type="text"
-                      className="ad-input"
-                      value={formData.medical_conditions || ""}
-                      onChange={(e) => setFormData({ ...formData, medical_conditions: e.target.value })}
-                      placeholder="None"
-                    />
-                  </div>
-                  <div className="ad-form-group">
-                    <label>Medications</label>
-                    <input
-                      type="text"
-                      className="ad-input"
-                      value={formData.medications || ""}
-                      onChange={(e) => setFormData({ ...formData, medications: e.target.value })}
-                      placeholder="None"
-                    />
-                  </div>
-                </div>
-                <div className="ad-form-group">
-                  <label>Health Notes</label>
-                  <textarea
-                    className="ad-input"
-                    value={formData.health_notes || ""}
-                    onChange={(e) => setFormData({ ...formData, health_notes: e.target.value })}
-                    rows={2}
-                  />
-                </div>
-              </div>
 
               <div className="ad-form-actions">
                 <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>

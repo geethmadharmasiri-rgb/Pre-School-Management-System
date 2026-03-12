@@ -1,0 +1,250 @@
+--- parent_child links ---
+[
+  {
+    "parent_id": 10,
+    "child_id": 14,
+    "relationship": "father",
+    "status": "approved",
+    "child_name": "Chanu",
+    "parent_user_name": "Nimal Perera",
+    "parent_email": "nimal@gmail.com",
+    "nic": "199078900987"
+  },
+  {
+    "parent_id": 11,
+    "child_id": 14,
+    "relationship": "mother",
+    "status": "approved",
+    "child_name": "Chanu",
+    "parent_user_name": "Chamani Perera",
+    "parent_email": "chamani@gmail.com",
+    "nic": "199278900123"
+  },
+  {
+    "parent_id": 12,
+    "child_id": 16,
+    "relationship": "father",
+    "status": "approved",
+    "child_name": "Dinethya",
+    "parent_user_name": "Bhanuka Bandara",
+    "parent_email": "bhanuka@gmail.com",
+    "nic": "19682340980"
+  },
+  {
+    "parent_id": 13,
+    "child_id": 16,
+    "relationship": "mother",
+    "status": "approved",
+    "child_name": "Dinethya",
+    "parent_user_name": "Lalitha Bandara",
+    "parent_email": "lalitha@gmail.com",
+    "nic": "197024567909"
+  }
+]
+
+--- children ---
+[
+  {
+    "id": 14,
+    "first_name": "Chanu",
+    "last_name": "Perera"
+  },
+  {
+    "id": 16,
+    "first_name": "Dinethya",
+    "last_name": "Bandara"
+  }
+]
+
+--- parents ---
+[
+  {
+    "id": 10,
+    "name": "Nimal Perera",
+    "email": "nimal@gmail.com",
+    "nic": "199078900987",
+    "user_id": 43
+  },
+  {
+    "id": 11,
+    "name": "Chamani Perera",
+    "email": "chamani@gmail.com",
+    "nic": "199278900123",
+    "user_id": 44
+  },
+  {
+    "id": 12,
+    "name": "Bhanuka Bandara",
+    "email": "bhanuka@gmail.com",
+    "nic": "19682340980",
+    "user_id": 48
+  },
+  {
+    "id": 13,
+    "name": "Lalitha Bandara",
+    "email": "lalitha@gmail.com",
+    "nic": "197024567909",
+    "user_id": 49
+  }
+]
+
+--- users ---
+[
+  {
+    "id": 1,
+    "name": "Super Admin",
+    "email": "admin@ilakids.lk",
+    "role": "ADMIN"
+  },
+  {
+    "id": 3,
+    "name": "geethma",
+    "email": "geethmadharmasiri8@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 4,
+    "name": "Rumesh",
+    "email": "rumesh23@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 5,
+    "name": "Nimali",
+    "email": "nimali@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 6,
+    "name": "Minoja",
+    "email": "minoja@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 7,
+    "name": "Hasini",
+    "email": "hasini123@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 8,
+    "name": "Piyumi",
+    "email": "piyumidharmasiri0874@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 9,
+    "name": "Ruwan",
+    "email": "ruwan@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 10,
+    "name": "Dinethya",
+    "email": "dini123@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 11,
+    "name": "Oshadhi Dharmasiri",
+    "email": "oshadhidharmasiri250@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 12,
+    "name": "oshadha",
+    "email": "oshadhidharmasiri@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 13,
+    "name": "Ms. Clara Perera",
+    "email": "teacher@example.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 18,
+    "name": "Nimesha",
+    "email": "nimesha@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 26,
+    "name": "Nikini Perera",
+    "email": "geeth02dharmasiri@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 27,
+    "name": "Chanusha Ekanayake",
+    "email": "chanusha@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 28,
+    "name": "Hiruni Fernando",
+    "email": "hiruni@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 29,
+    "name": "Omal Perera",
+    "email": "omal@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 30,
+    "name": "Geethma Dharmasiri",
+    "email": "tharugeeth2002@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 36,
+    "name": "Oshadhi Anuththara",
+    "email": "oshadhi@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 43,
+    "name": "Nimal Perera",
+    "email": "nimal@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 44,
+    "name": "Chamani Perera",
+    "email": "chamani@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 45,
+    "name": "Yohani",
+    "email": "yohani@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 46,
+    "name": "uduwage",
+    "email": "uduwage@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 47,
+    "name": "ruwangi",
+    "email": "ruwangi@gmail.com",
+    "role": "TEACHER"
+  },
+  {
+    "id": 48,
+    "name": "Bhanuka Bandara",
+    "email": "bhanuka@gmail.com",
+    "role": "PARENT"
+  },
+  {
+    "id": 49,
+    "name": "Lalitha Bandara",
+    "email": "lalitha@gmail.com",
+    "role": "PARENT"
+  }
+]
+

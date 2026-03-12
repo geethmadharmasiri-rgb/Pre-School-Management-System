@@ -309,19 +309,6 @@ app.post("/api/admin/register-child-parents", authRequired, upload.single('birth
     );
     const childId = childResult.insertId;
 
-    // 1.1 Insert Child Health Info
-    await connection.query(
-      `INSERT INTO child_health (child_id, blood_type, allergies, medications, health_notes, medical_conditions)
-      VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        childId,
-        child.bloodType || null,
-        child.allergies || null,
-        child.medications || null,
-        child.health_notes || null,
-        child.medicalConditions || null
-      ]
-    );
 
     // 2. Process Parents
     for (const parent of parents) {
@@ -1096,12 +1083,6 @@ app.post("/api/children", authRequired, upload.single("birthCertificate"), async
     );
     const childId = childRes.insertId;
 
-    // 1.1 Insert Child Health Info
-    await connection.query(
-      `INSERT INTO child_health (child_id, medical_conditions, blood_type, allergies, medications, health_notes)
-      VALUES (?, ?, ?, ?, ?, ?)`,
-      [childId, medical_conditions || null, blood_type || null, allergies || null, medications || null, health_notes || null]
-    );
 
     // 2. If it's a PARENT, link automatically
     if (req.user.role === "PARENT") {
@@ -1128,10 +1109,12 @@ app.post("/api/children", authRequired, upload.single("birthCertificate"), async
 
 app.get("/api/children", authRequired, async (req, res) => {
   try {
+    const { scope, yearId } = req.query;
     let query = "";
     let params = [];
 
-    if (req.user.role === "ADMIN") {
+    // 1. ADMIN - Management View (All inclusive)
+    if (req.user.role === "ADMIN" && scope !== 'my') {
       query = `
         SELECT c.*, cl.name as className, 
                GROUP_CONCAT(u.name SEPARATOR ', ') as parentName, 
@@ -1146,8 +1129,9 @@ app.get("/api/children", authRequired, async (req, res) => {
         LEFT JOIN child_health ch ON c.id = ch.child_id
         GROUP BY c.id
       `;
-    } else if (req.user.role === "TEACHER") {
-      const { yearId } = req.query;
+    } 
+    // 2. TEACHER - Class View
+    else if (req.user.role === "TEACHER" && scope !== 'my') {
       // Find teacher's assigned class for the specific year
       const [teacherRows] = await db.query(
         "SELECT id FROM teachers WHERE user_id = ? LIMIT 1",
@@ -1187,13 +1171,14 @@ app.get("/api/children", authRequired, async (req, res) => {
         GROUP BY c.id
       `;
       params = [classId];
-    } else if (req.user.role === "PARENT") {
-      // Find parent's linked children
+    } 
+    // 3. PARENT (or forced personal scope for Admin/Teacher)
+    else {
       const [parentRows] = await db.query(
         "SELECT id FROM parents WHERE user_id = ? LIMIT 1",
         [req.user.id]
       );
-      if (!parentRows.length) return res.json([]);
+      if (!parentRows.length) return res.json([]); // No linked children for this user profile
 
       const parentId = parentRows[0].id;
       query = `
@@ -1204,8 +1189,6 @@ app.get("/api/children", authRequired, async (req, res) => {
         WHERE pc.parent_id = ?
       `;
       params = [parentId];
-    } else {
-      return res.status(403).json({ message: "Forbidden" });
     }
 
     const [rows] = await db.query(query, params);
@@ -1376,17 +1359,6 @@ app.put("/api/children/:id", authRequired, upload.single("birthCertificate"), as
 
     await db.query(query, params);
 
-    // Also update health info if provided
-    await db.query(`
-      INSERT INTO child_health (child_id, medical_conditions, blood_type, allergies, medications, health_notes)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE 
-        medical_conditions = VALUES(medical_conditions),
-        blood_type = VALUES(blood_type),
-        allergies = VALUES(allergies),
-        medications = VALUES(medications),
-        health_notes = VALUES(health_notes)
-    `, [childId, medical_conditions || null, blood_type || null, allergies || null, medications || null, health_notes || null]);
 
     res.json({ message: "Child updated successfully" });
   } catch (err) {
@@ -1499,35 +1471,6 @@ app.put("/api/children/:id/profile", authRequired, upload.single("profilePicture
    UPDATE CHILD HEALTH INFO (TEACHER/PARENT/ADMIN)
    PUT /api/children/:id/health-info
 ========================= */
-app.put("/api/children/:id/health-info", authRequired, async (req, res) => {
-  try {
-    const { allergies, medications, health_notes } = req.body;
-    const childId = req.params.id;
-
-    // Authorization Check
-    if (req.user.role === "PARENT") {
-      // Verify ownership
-      const [parentRows] = await db.query("SELECT id FROM parents WHERE user_id = ?", [req.user.id]);
-      if (!parentRows.length) return res.status(403).json({ message: "Not authorized" });
-      const [linkRows] = await db.query("SELECT 1 FROM parent_child WHERE parent_id = ? AND child_id = ?", [parentRows[0].id, childId]);
-      if (!linkRows.length) return res.status(403).json({ message: "Not authorized" });
-    } else if (req.user.role === "TEACHER" || req.user.role === "ADMIN") {
-      // Allowed
-    } else {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    await db.query(
-      "UPDATE children SET allergies = ?, medications = ?, health_notes = ? WHERE id = ?",
-      [allergies, medications, health_notes, childId]
-    );
-
-    res.json({ message: "Health information updated successfully" });
-  } catch (err) {
-    console.error("PUT /api/children/:id/health-info error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
 
 /* =========================
    TEACHER MANAGEMENT (ADMIN)
@@ -2058,8 +2001,8 @@ app.put("/api/children/:id/health-info", authRequired, async (req, res) => {
       } else {
         return res.status(403).json({ message: "Parent profile not found" });
       }
-    } else if (userRole !== "TEACHER" && userRole !== "ADMIN") {
-      return res.status(403).json({ message: "Unauthorized" });
+    } else if (userRole !== "TEACHER") {
+      return res.status(403).json({ message: "Unauthorized. Health info can only be updated by Teachers or parents." });
     }
 
     const { allergies, medications, health_notes, medical_conditions, blood_type } = req.body;
@@ -2097,16 +2040,33 @@ app.get("/api/admin/parents/search", authRequired, async (req, res) => {
     const { nic } = req.query;
     if (!nic) return res.json([]);
 
+    const searchPattern = `%${nic}%`;
+
+    // Find the person matching NIC AND any other parents who share children with them
     const [rows] = await db.query(`
-      SELECT p.*, u.name, u.email 
-      FROM parents p 
-      JOIN users u ON p.user_id = u.id 
+      SELECT DISTINCT p.id, p.nic, p.phone, p.address, p.occupation, u.name, u.email,
+             (p.nic LIKE ?) as isPrimary,
+             (
+               SELECT GROUP_CONCAT(DISTINCT relationship)
+               FROM parent_child
+               WHERE parent_id = p.id
+             ) as previousRoles
+      FROM parents p
+      JOIN users u ON p.user_id = u.id
       WHERE p.nic LIKE ?
-    `, [`%${nic}%`]);
+         OR p.id IN (
+           SELECT pc2.parent_id
+           FROM parent_child pc1
+           JOIN parent_child pc2 ON pc1.child_id = pc2.child_id
+           WHERE pc1.parent_id IN (SELECT id FROM parents WHERE nic LIKE ?)
+         )
+      ORDER BY isPrimary DESC, u.name ASC
+    `, [searchPattern, searchPattern, searchPattern]);
 
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    console.error("Parent Search Error:", err);
+    res.status(500).json({ message: "Server error during parent search" });
   }
 });
 

@@ -23,7 +23,7 @@ export default function ParentChildren() {
     const fetchChildren = async () => {
         try {
             const token = localStorage.getItem("token");
-            const res = await fetch("http://localhost:5000/api/children", {
+            const res = await fetch("http://localhost:5000/api/children?scope=my", {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await res.json();
