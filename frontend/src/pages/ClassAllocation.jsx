@@ -1,466 +1,415 @@
-import React, { useMemo, useState } from "react";
+
+import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import "./ClassAllocation.css";
-
-const MAX_PRESCHOOL_CAPACITY = 150;
-
-// Demo data
-const initialClasses = [
-  { id: "A", name: "Class A", capacity: 50, teacherId: "EMP001", childIds: [] },
-  { id: "B", name: "Class B", capacity: 50, teacherId: "EMP002", childIds: [] },
-  { id: "C", name: "Class C", capacity: 50, teacherId: "EMP003", childIds: [] },
-];
-
-const initialTeachers = [
-  { id: "EMP001", name: "Ms. Clara Perera" },
-  { id: "EMP002", name: "Mr. Erasha" },
-  { id: "EMP003", name: "Ms. Sonali Perera" },
-];
-
-const initialChildren = [
-  { id: "CH-001", name: "Shanaya Perera", age: 4, dateOfBirth: "20/05/2020" },
-  { id: "CH-002", name: "Nethmi Silva", age: 5, dateOfBirth: "15/03/2019" },
-  { id: "CH-003", name: "Malki Perera", age: 4, dateOfBirth: "10/06/2020" },
-  { id: "CH-004", name: "Dineth Jayasinghe", age: 5, dateOfBirth: "22/04/2019" },
-  { id: "CH-005", name: "Oshini Dharmasiri", age: 4, dateOfBirth: "18/07/2020" },
-  { id: "CH-006", name: "Arjun Kumar", age: 5, dateOfBirth: "05/02/2019" },
-  { id: "CH-007", name: "Isuru Mendis", age: 4, dateOfBirth: "12/08/2020" },
-];
+import { Icons } from "../components/Icons";
 
 export default function ClassAllocation() {
   const navigate = useNavigate();
-  const [classes, setClasses] = useState(initialClasses);
-  const [teachers] = useState(initialTeachers);
-  const [children] = useState(initialChildren);
+  const [classes, setClasses] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [children, setChildren] = useState([]);
+  const [years, setYears] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [selectedClassId, setSelectedClassId] = useState("A");
+  // UI State
+  const [selectedYearId, setSelectedYearId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState(null);
   const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("unassigned"); // 'unassigned', 'assigned', 'all'
+  const [showAddModal, setShowAddModal] = useState(false);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/login");
-  };
+  // Selected Class Form State (for the left column)
+  const [classForm, setClassForm] = useState({ name: "", capacity: 25, teacher_id: "" });
 
-  const selectedClass = useMemo(
-    () => classes.find((c) => c.id === selectedClassId),
-    [classes, selectedClassId]
-  );
+  const fetchData = async () => {
+    try {
+      const token = localStorage.getItem("token");
 
-  const selectedTeacher = useMemo(() => {
-    if (!selectedClass) return null;
-    return teachers.find((t) => t.id === selectedClass.teacherId);
-  }, [selectedClass, teachers]);
+      // 1. Fetch Years first
+      const resYears = await fetch("http://localhost:5000/api/admin/academic-years", { headers: { Authorization: `Bearer ${token}` } });
+      const dataYears = await resYears.json();
+      setYears(dataYears);
 
-  const totalAssigned = useMemo(
-    () => classes.reduce((sum, c) => sum + c.childIds.length, 0),
-    [classes]
-  );
+      // Determine active year to show initially
+      let currentYearId = selectedYearId;
+      if (!currentYearId && dataYears.length > 0) {
+        const active = dataYears.find(y => y.is_active);
+        currentYearId = active ? active.id : dataYears[0].id;
+        setSelectedYearId(currentYearId);
+      }
 
-  const preschoolPercent = useMemo(() => {
-    const cap = Math.max(1, MAX_PRESCHOOL_CAPACITY);
-    return Math.min(100, Math.round((totalAssigned / cap) * 100));
-  }, [totalAssigned]);
+      // 2. Fetch other data based on selected year
+      const [resCls, resTea, resChi] = await Promise.all([
+        fetch(`http://localhost:5000/api/admin/classes?yearId=${currentYearId || ''}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("http://localhost:5000/api/admin/teachers", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("http://localhost:5000/api/children", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const [dataCls, dataTea, dataChi] = await Promise.all([resCls.json(), resTea.json(), resChi.json()]);
 
-  const classPercent = useMemo(() => {
-    if (!selectedClass) return 0;
-    const cap = Math.max(1, Number(selectedClass.capacity || 0));
-    return Math.min(100, Math.round((selectedClass.childIds.length / cap) * 100));
-  }, [selectedClass]);
-
-  // Children not already assigned to another class (or keep if already in this class)
-  const availableChildren = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    // map childId -> classId
-    const owner = new Map();
-    classes.forEach((c) => c.childIds.forEach((id) => owner.set(id, c.id)));
-
-    return children
-      .filter((ch) => {
-        const inThisClass = owner.get(ch.id) === selectedClassId;
-        const unassigned = !owner.has(ch.id);
-        return inThisClass || unassigned;
-      })
-      .filter((ch) => {
-        if (!q) return true;
-        return (
-          ch.name.toLowerCase().includes(q) ||
-          ch.id.toLowerCase().includes(q) ||
-          String(ch.age).includes(q)
-        );
+      // Enrich child data with class names
+      const enrichedChi = dataChi.map(ch => {
+        const cls = dataCls.find(c => c.id === ch.class_id);
+        return { ...ch, className: cls ? cls.name : null };
       });
-  }, [children, classes, selectedClassId, search]);
 
-  const toggleChild = (childId) => {
-    setClasses((prev) =>
-      prev.map((c) => {
-        if (c.id !== selectedClassId) return c;
+      setClasses(dataCls);
+      setTeachers(dataTea);
+      setChildren(enrichedChi);
 
-        const exists = c.childIds.includes(childId);
-        if (exists) {
-          return { ...c, childIds: c.childIds.filter((id) => id !== childId) };
+      if (dataCls.length > 0) {
+        // If we switched years and the previously selected class doesn't exist in new list, select first
+        if (!selectedClassId || !dataCls.find(c => c.id === selectedClassId)) {
+          setSelectedClassId(dataCls[0].id);
+          setClassForm({ name: dataCls[0].name, capacity: dataCls[0].capacity, teacher_id: dataCls[0].teacher_id || "" });
+        } else {
+          // Refresh form data for currently selected class (in case of updates)
+          const updated = dataCls.find(c => c.id === selectedClassId);
+          if (updated) setClassForm({ name: updated.name, capacity: updated.capacity, teacher_id: updated.teacher_id || "" });
         }
+      } else {
+        setSelectedClassId(null); // No classes in this year
+      }
 
-        // capacity guard
-        if (c.childIds.length >= Number(c.capacity || 0)) return c;
-
-        return { ...c, childIds: [...c.childIds, childId] };
-      })
-    );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateCapacity = (value) => {
-    const cap = Math.max(0, Number(value || 0));
-    setClasses((prev) =>
-      prev.map((c) => (c.id === selectedClassId ? { ...c, capacity: cap } : c))
-    );
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYearId]); // Re-fetch when year changes
+
+  const selectedClass = classes.find(c => c.id === selectedClassId);
+
+  const handleClassSelect = (cls) => {
+    setSelectedClassId(cls.id);
+    setClassForm({ name: cls.name, capacity: cls.capacity, teacher_id: cls.teacher_id || "" });
   };
 
-  const updateClassName = (value) => {
-    setClasses((prev) =>
-      prev.map((c) => (c.id === selectedClassId ? { ...c, name: value } : c))
-    );
+  const handleUpdateClass = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/admin/classes/${selectedClassId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: classForm.name,
+          capacity: Number(classForm.capacity),
+          teacherId: classForm.teacher_id || null,
+          academicYearId: selectedYearId
+        }),
+      });
+      if (res.ok) {
+        alert("Class updated successfully!");
+        fetchData();
+      }
+    } catch (err) { console.error(err); }
   };
 
-  const updateTeacher = (teacherId) => {
-    setClasses((prev) =>
-      prev.map((c) => (c.id === selectedClassId ? { ...c, teacherId } : c))
-    );
+  const handleDeleteClass = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedClass.name}? All children will be unassigned.`)) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/admin/classes/${selectedClassId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setSelectedClassId(null);
+        fetchData();
+      }
+    } catch (err) { console.error(err); }
   };
 
-  const handleSave = () => {
-    console.log("SAVE ALLOCATIONS:", classes);
-    alert("Class allocations saved ✅");
+  const handleToggleChild = async (childId, isCurrentlyAssigned) => {
+    try {
+      const token = localStorage.getItem("token");
+      const newClassId = isCurrentlyAssigned ? null : selectedClassId;
+      console.log(`DEBUG: Assigning child ${childId} to class ${newClassId}`);
+
+      const res = await fetch(`http://localhost:5000/api/admin/children/${childId}/assign-class`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ classId: newClassId }),
+      });
+
+      if (res.ok) {
+        fetchData();
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.message || 'Failed to assign child'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Connectivity error while assigning child");
+    }
   };
 
-  const handleReset = () => {
-    if (!window.confirm("Reset all allocations?")) return;
-    setClasses(initialClasses);
-    setSelectedClassId("A");
-    setSearch("");
-  };
+  // Filter logic for right column
+  const childList = children.filter(ch => {
+    const matchesSearch = `${ch.first_name} ${ch.last_name} ${ch.id}`.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (filterType === 'unassigned') return !ch.class_id;
+    if (filterType === 'assigned') return ch.class_id === selectedClassId;
+    return true; // 'all'
+  });
+
+  if (loading && !years.length) return <div className="loading">Loading...</div>;
 
   return (
-    <div className="ad-container">
-      {/* Sidebar */}
-      <aside className="ad-sidebar">
-        <h2 className="ad-logo">ILA KIDS CAMPUS</h2>
-
-        <nav className="ad-menu">
-          <button className="ad-menu-item" onClick={() => navigate("/admin")}>
-            <span className="icon">{Icons.dashboard()}</span>
-            Dashboard
-          </button>
-
-          <button className="ad-menu-item" onClick={() => navigate("/admin/children")}>
-            <span className="icon">{Icons.child()}</span>
-            Child Management
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.parents()}</span>
-            Parent Management
-          </button>
-
-          <button className="ad-menu-item" onClick={() => navigate("/admin/teachers")}>
-            <span className="icon">{Icons.teacher()}</span>
-            Teacher Management
-          </button>
-
-          <button className="ad-menu-item active">
-            <span className="icon">{Icons.class()}</span>
-            Class Allocation
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.attendance()}</span>
-            Attendance
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.payment()}</span>
-            Payments
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.reports()}</span>
-            Reports
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.bell()}</span>
-            Notifications
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.events()}</span>
-            Events
-          </button>
-        </nav>
-
-        <button className="ad-logout" onClick={handleLogout}>
-          <span className="icon">{Icons.logout()}</span>
-          Logout
-        </button>
-      </aside>
-
-      {/* Main Content */}
-      <main className="ad-main">
-        <header className="ad-header">
+    <div className="class-allocation">
+      <header className="ad-header">
+        <div>
           <h1>Class Allocation</h1>
-          <div className="notification">{Icons.bell()}</div>
-        </header>
-
-        {/* CLASS SELECTOR SECTION */}
-        <section className="ca-selector-section">
-          <h2 className="ca-section-title">Select Class</h2>
-          <div className="ca-class-buttons">
-            {classes.map((c) => {
-              const pct = Number(c.capacity || 0)
-                ? Math.min(100, Math.round((c.childIds.length / Number(c.capacity)) * 100))
-                : 0;
-              const active = c.id === selectedClassId;
-
-              return (
-                <button
-                  key={c.id}
-                  className={`ca-class-btn ${active ? "active" : ""}`}
-                  onClick={() => setSelectedClassId(c.id)}
-                >
-                  <div className="ca-btn-name">{c.name}</div>
-                  <div className="ca-btn-info">
-                    {c.childIds.length}/{c.capacity}
-                  </div>
-                  <div className="ca-btn-bar">
-                    <div className="ca-btn-bar-fill" style={{ width: `${pct}%` }} />
-                  </div>
-                </button>
-              );
-            })}
+          <p className="ad-header-subtitle">Assign children to classes and manage settings</p>
+        </div>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#64748b' }}>Academic Year:</span>
+            <select
+              className="ad-select"
+              style={{ width: 'auto', padding: '8px 12px', fontWeight: 600 }}
+              value={selectedYearId}
+              onChange={(e) => setSelectedYearId(Number(e.target.value))}
+            >
+              {years.map(y => (
+                <option key={y.id} value={y.id}>
+                  {y.year_name} {y.is_active ? '(Current)' : ''}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn-secondary"
+              style={{ padding: '8px 12px', fontSize: '13px' }}
+              onClick={() => navigate('/admin/academic-years')}
+            >
+              Manage
+            </button>
           </div>
-        </section>
+          <button className="btn-primary" onClick={() => setShowAddModal(true)}>
+            {Icons.plus} Add New Class
+          </button>
+        </div>
+      </header>
 
-        {/* MAIN ALLOCATION GRID */}
-        <section className="ca-main-grid">
-          {/* LEFT: CLASS SETTINGS */}
-          <div className="ca-settings-card">
-            <div className="ca-card-header">
-              <h2>Class Settings</h2>
-              <p>Configure class details and assign teacher</p>
+      {/* COMPACT CLASS SELECTOR BAR */}
+      <div style={{ display: 'flex', gap: '12px', margin: '24px 0', overflowX: 'auto', paddingBottom: '12px' }}>
+        {classes.map(c => {
+          const isActive = selectedClassId === c.id;
+          const fillPercent = Math.min(100, Math.round((c.childIds.length / c.capacity) * 100));
+          return (
+            <div
+              key={c.id}
+              onClick={() => handleClassSelect(c)}
+              className="ad-card"
+              style={{
+                minWidth: '200px', cursor: 'pointer',
+                borderColor: isActive ? 'var(--ad-accent)' : 'transparent',
+                backgroundColor: isActive ? '#f0fdfa' : 'white',
+                padding: '16px'
+              }}
+            >
+              <div style={{ fontWeight: 600, fontSize: '15px', color: isActive ? 'var(--ad-accent)' : 'inherit' }}>{c.name}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{c.childIds.length} / {c.capacity} Children</div>
+              <div style={{ height: '4px', background: '#e2e8f0', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${fillPercent}%`, background: isActive ? 'var(--ad-accent)' : '#94a3b8' }}></div>
+              </div>
             </div>
+          );
+        })}
+        {classes.length === 0 && (
+          <div style={{ padding: '20px', color: '#94a3b8', fontStyle: 'italic' }}>No classes found in this academic year. Create one to get started.</div>
+        )}
+      </div>
 
-            <div className="ca-settings-content">
-              {/* Class Name */}
-              <div className="ca-field-group">
+      <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '24px', alignItems: 'start' }}>
+
+        {/* LEFT COLUMN: CLASS SETTINGS */}
+        <div className="ad-card" style={{ position: 'sticky', top: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0 }}>Class Settings</h3>
+            {selectedClass && (
+              <button onClick={handleDeleteClass} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}>
+                Delete Class
+              </button>
+            )}
+          </div>
+
+          {!selectedClass ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>Select a class to manage</div>
+          ) : (
+            <form onSubmit={handleUpdateClass}>
+              <div className="ad-form-group">
                 <label>Class Name</label>
-                <input
-                  value={selectedClass?.name || ""}
-                  onChange={(e) => updateClassName(e.target.value)}
-                  placeholder="Enter class name"
-                />
+                <input className="ad-input" value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })} required />
               </div>
-
-              {/* Capacity */}
-              <div className="ca-field-group">
-                <label>Class Capacity</label>
-                <input
-                  type="number"
-                  value={selectedClass?.capacity ?? 0}
-                  onChange={(e) => updateCapacity(e.target.value)}
-                  placeholder="Enter capacity"
-                  min={0}
-                />
-              </div>
-
-              {/* Teacher */}
-              <div className="ca-field-group">
-                <label>Primary Teacher</label>
-                <select
-                  value={selectedClass?.teacherId || ""}
-                  onChange={(e) => updateTeacher(e.target.value)}
-                >
-                  <option value="">Select a teacher</option>
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
+              <div className="ad-form-group">
+                <label>Assigned Teacher</label>
+                <select className="ad-select" value={classForm.teacher_id} onChange={e => setClassForm({ ...classForm, teacher_id: e.target.value })}>
+                  <option value="">No Teacher Assigned</option>
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.emp_id})</option>
                   ))}
                 </select>
               </div>
-
-              {/* Teacher Info */}
-              {selectedTeacher && (
-                <div className="ca-teacher-info">
-                  <div className="ca-teacher-label">Assigned Teacher:</div>
-                  <div className="ca-teacher-name">{selectedTeacher.name}</div>
-                  <div className="ca-teacher-id">{selectedTeacher.id}</div>
-                </div>
-              )}
-
-              {/* Fill Percentage */}
-              <div className="ca-fill-indicator">
-                <div className="ca-fill-label">Capacity Used</div>
-                <div className="ca-fill-value">{classPercent}%</div>
-                <div className="ca-fill-bar">
-                  <div className="ca-fill-bar-fill" style={{ width: `${classPercent}%` }} />
-                </div>
+              <div className="ad-form-group">
+                <label>Class Capacity</label>
+                <input type="number" className="ad-input" value={classForm.capacity} onChange={e => setClassForm({ ...classForm, capacity: Number(e.target.value) })} min="1" required />
               </div>
 
-              {/* Save/Reset Buttons */}
-              <div className="ca-button-group">
-                <button className="ca-btn-save" onClick={handleSave}>
-                  💾 Save Allocations
-                </button>
-                <button className="ca-btn-reset" onClick={handleReset}>
-                  🔄 Reset
-                </button>
+              <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontSize: '13px', color: '#64748b' }}>Current Occupancy</div>
+                <div style={{ fontSize: '28px', fontWeight: 700, margin: '4px 0' }}>{Math.round((selectedClass.childIds.length / selectedClass.capacity) * 100)}%</div>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{selectedClass.childIds.length} of {selectedClass.capacity} seats filled</div>
               </div>
+
+              <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '24px' }}>Save Changes</button>
+            </form>
+          )}
+        </div>
+
+        {/* RIGHT COLUMN: CHILD MANAGEMENT */}
+        <div className="ad-card" style={{ minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h3 style={{ margin: 0 }}>Enrollment Management</h3>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: '#64748b' }}>Show:</span>
+              <select className="ad-select" style={{ width: 'auto', padding: '6px 12px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
+                <option value="unassigned">Unassigned Children</option>
+                <option value="assigned">Currently in {selectedClass?.name || '---'}</option>
+                <option value="all">All Children</option>
+              </select>
             </div>
           </div>
 
-          {/* RIGHT: CHILDREN LIST */}
-          <div className="ca-children-card">
-            <div className="ca-card-header">
-              <h2>Assign Children to {selectedClass?.name}</h2>
-              <p>Search and select children to allocate to this class</p>
-            </div>
+          <div style={{ position: 'relative', marginBottom: '20px' }}>
+            <input
+              type="text"
+              placeholder="Search by ID or Name..."
+              className="ad-input"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ paddingLeft: '40px' }}
+            />
+            <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '20px', color: '#94a3b8' }}>{Icons.search}</div>
+          </div>
 
-            <div className="ca-search-wrapper">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="🔍 Search by name, ID, or age..."
-                className="ca-search-input"
-              />
-            </div>
-
-            {/* Children List with Scroll */}
-            <div className="ca-children-list">
-              {availableChildren.length > 0 ? (
-                availableChildren.map((ch) => {
-                  const checked = selectedClass?.childIds.includes(ch.id);
-                  const isFull =
-                    (selectedClass?.childIds.length || 0) >= Number(selectedClass?.capacity || 0);
-                  const disabled = !checked && isFull;
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <table className="ad-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Child Name</th>
+                  <th>Current Class</th>
+                  <th style={{ textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {childList.map(ch => {
+                  const isAssignedToThis = ch.class_id === selectedClassId;
+                  const isAssignedElse = ch.class_id && ch.class_id !== selectedClassId;
 
                   return (
-                    <div key={ch.id} className="ca-child-item">
-                      <div className="ca-child-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={!!checked}
-                          disabled={disabled}
-                          onChange={() => toggleChild(ch.id)}
-                        />
-                      </div>
-                      <div className="ca-child-details">
-                        <div className="ca-child-name">{ch.name}</div>
-                        <div className="ca-child-meta">
-                          ID: {ch.id} | Age: {ch.age} | DOB: {ch.dateOfBirth}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="ca-empty-message">No children found matching your search</div>
-              )}
-            </div>
-
-            {/* Selected Count */}
-            <div className="ca-selected-count">
-              Selected: {selectedClass?.childIds.length || 0} / {selectedClass?.capacity || 0}
-            </div>
+                    <tr key={ch.id}>
+                      <td><span style={{ fontFamily: 'monospace', fontWeight: 600 }}>CH-{String(ch.id).padStart(3, '0')}</span></td>
+                      <td style={{ fontWeight: 500 }}>{ch.first_name} {ch.last_name}</td>
+                      <td>
+                        {ch.className ? (
+                          <span className={`status-badge active`}>{ch.className}</span>
+                        ) : (
+                          <span className={`status-badge pending`}>Unassigned</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {isAssignedToThis ? (
+                          <button onClick={() => handleToggleChild(ch.id, true)} className="action-btn delete" style={{ padding: '6px 12px' }}>Remove</button>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleChild(ch.id, false)}
+                            className="action-btn approve"
+                            disabled={!selectedClass}
+                            title={!selectedClass ? "Select a class first" : (isAssignedElse ? "Already in another class" : "Assign to this class")}
+                            style={{ padding: '6px 12px', opacity: isAssignedElse || !selectedClass ? 0.5 : 1 }}
+                          >
+                            Assign to {selectedClass?.name || 'Class'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {childList.length === 0 && (
+                  <tr>
+                    <td colSpan="4" style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
+                      No matching children found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        </section>
-      </main>
+        </div>
+      </div>
+
+      {/* ADD CLASS MODAL */}
+      {showAddModal && <AddClassModal onClose={() => setShowAddModal(false)} onSave={() => { setShowAddModal(false); fetchData(); }} teachers={teachers} currentYearId={selectedYearId} />}
     </div>
   );
 }
 
-/* ================== ICONS ================== */
+function AddClassModal({ onClose, onSave, teachers, currentYearId }) {
+  const [data, setData] = useState({ name: "", capacity: 25, teacherId: "" });
 
-const Icons = {
-  dashboard: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="3" width="7" height="7"></rect>
-      <rect x="14" y="3" width="7" height="7"></rect>
-      <rect x="14" y="14" width="7" height="7"></rect>
-      <rect x="3" y="14" width="7" height="7"></rect>
-    </svg>
-  ),
-  child: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0 -6 0"></path>
-      <path d="M12 2c-3.314 0 -6 3.134 -6 7v2c0 4.418 2 7 6 7s6 -2.582 6 -7v-2c0 -3.866 -2.686 -7 -6 -7z"></path>
-      <path d="M5 20h14"></path>
-    </svg>
-  ),
-  parents: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M17 21v-2a4 4 0 0 0 -4 -4H5a4 4 0 0 0 -4 4v2"></path>
-      <circle cx="9" cy="7" r="4"></circle>
-      <path d="M23 21v-2a4 4 0 0 0 -3 -3.87"></path>
-      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-    </svg>
-  ),
-  teacher: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M12 2c-3.314 0 -6 3.134 -6 7c0 2 1 3 3 4v2h12v-2c2 -1 3 -2 3 -4c0 -3.866 -2.686 -7 -6 -7z"></path>
-      <path d="M4 19h16"></path>
-      <path d="M6 19v2"></path>
-      <path d="M18 19v2"></path>
-    </svg>
-  ),
-  class: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="5" width="18" height="14" rx="2"></rect>
-      <path d="M3 10h18"></path>
-      <path d="M8 5v10"></path>
-      <path d="M16 5v10"></path>
-    </svg>
-  ),
-  attendance: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M9 11l3 3L22 4"></path>
-      <path d="M21 12a9 9 0 1 1 0 -18 9 9 0 0 1 0 18z"></path>
-    </svg>
-  ),
-  payment: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-      <path d="M1 10h22"></path>
-    </svg>
-  ),
-  reports: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M14 2H6a2 2 0 0 0 -2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2V8z"></path>
-      <polyline points="14 2 14 8 20 8"></polyline>
-      <line x1="12" y1="13" x2="12" y2="17"></line>
-      <line x1="9" y1="15" x2="15" y2="15"></line>
-    </svg>
-  ),
-  bell: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7 -3 9 -3 9h18s -3 -2 -3 -9"></path>
-      <path d="M13.73 21a2 2 0 0 1 -3.46 0"></path>
-    </svg>
-  ),
-  events: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-      <path d="M16 2v4"></path>
-      <path d="M8 2v4"></path>
-      <line x1="3" y1="10" x2="21" y2="10"></line>
-    </svg>
-  ),
-  logout: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M9 21H5a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2h4"></path>
-      <polyline points="16 17 21 12 16 7"></polyline>
-      <line x1="21" y1="12" x2="9" y2="12"></line>
-    </svg>
-  ),
-};
+  const submit = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/admin/classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ...data,
+          capacity: Number(data.capacity),
+          teacherId: data.teacherId || null,
+          academicYearId: currentYearId // Pass current year context
+        }),
+      });
+      if (res.ok) onSave();
+    } catch (err) { console.error(err); }
+  };
 
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div className="ad-form-card" style={{ width: '400px' }}>
+        <h2>Create New Class</h2>
+        <form onSubmit={submit}>
+          <div className="ad-form-group">
+            <label>Name</label>
+            <input className="ad-input" value={data.name} onChange={e => setData({ ...data, name: e.target.value })} required placeholder="e.g. Class C" />
+          </div>
+          <div className="ad-form-group">
+            <label>Capacity</label>
+            <input type="number" className="ad-input" value={data.capacity} onChange={e => setData({ ...data, capacity: e.target.value })} required />
+          </div>
+          <div className="ad-form-group">
+            <label>Initial Teacher</label>
+            <select className="ad-select" value={data.teacherId} onChange={e => setData({ ...data, teacherId: e.target.value })}>
+              <option value="">Select Later</option>
+              {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div className="ad-form-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

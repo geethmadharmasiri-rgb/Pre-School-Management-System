@@ -4,7 +4,9 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   font-family: Arial, sans-serif;
 }
@@ -81,7 +83,8 @@ html, body, #root {
 /* ✅ Remember & Forgot (UPDATED FIX) */
 .remember-forgot {
   display: flex;
-  justify-content: space-between;   /* ✅ better spacing */
+  justify-content: space-between;
+  /* ✅ better spacing */
   align-items: center;
   width: 100%;
   gap: 6px;
@@ -93,7 +96,8 @@ html, body, #root {
   font-size: 13px;
   color: white;
   cursor: pointer;
-  white-space: nowrap;             /* ✅ keep one line */
+  white-space: nowrap;
+  /* ✅ keep one line */
 }
 
 .forgot-link:hover {
@@ -107,7 +111,8 @@ html, body, #root {
   gap: 6px;
   font-size: 14px;
   color: white;
-  white-space: nowrap;             /* ✅ keep "Remember Me" one line */
+  white-space: nowrap;
+  /* ✅ keep "Remember Me" one line */
 }
 
 .remember-me input {
@@ -164,6 +169,43 @@ html, body, #root {
   color: green;
   margin-top: 10px;
   font-size: 14px;
+}
+
+/* Role Theme Customizations */
+.login-form-section.login-parent .login-title {
+  color: #4CAF50;
+}
+
+.login-form-section.login-parent .login-btn {
+  background-color: #4CAF50;
+}
+
+.login-form-section.login-parent .login-btn:hover {
+  background-color: #388E3C;
+}
+
+.login-form-section.login-teacher .login-title {
+  color: #FF9800;
+}
+
+.login-form-section.login-teacher .login-btn {
+  background-color: #FF9800;
+}
+
+.login-form-section.login-teacher .login-btn:hover {
+  background-color: #F57C00;
+}
+
+.login-form-section.login-admin .login-title {
+  color: #333;
+}
+
+.login-form-section.login-admin .login-btn {
+  background-color: #333;
+}
+
+.login-form-section.login-admin .login-btn:hover {
+  background-color: #000;
 }
 
 /* MOBILE */

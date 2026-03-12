@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./AddChild.css";
+import { Icons } from "../components/Icons";
+// import "./AddChild.css"; // Removed custom CSS
 
 export default function AddChild() {
   const navigate = useNavigate();
@@ -10,46 +11,14 @@ export default function AddChild() {
   const [selectedRole, setSelectedRole] = useState("father");
 
   const [parentData, setParentData] = useState({
-    father: {
-      firstName: "",
-      lastName: "",
-      nic: "",
-      contact: "",
-      email: "",
-      occupation: "",
-      address: "",
-    },
-    mother: {
-      firstName: "",
-      lastName: "",
-      nic: "",
-      contact: "",
-      email: "",
-      occupation: "",
-      address: "",
-    },
-    guardian: {
-      firstName: "",
-      lastName: "",
-      nic: "",
-      contact: "",
-      email: "",
-      occupation: "",
-      address: "",
-    },
+    father: { firstName: "", lastName: "", nic: "", contact: "", email: "", occupation: "", address: "" },
+    mother: { firstName: "", lastName: "", nic: "", contact: "", email: "", occupation: "", address: "" },
+    guardian: { firstName: "", lastName: "", nic: "", contact: "", email: "", occupation: "", address: "" },
   });
 
   const [child, setChild] = useState({
-    firstName: "",
-    lastName: "",
-    dob: "",
-    address: "",
-    age: "",
-    gender: "Male",
-    bloodType: "",
-    medicalConditions: "",
-    enrollmentDate: "",
-    programName: "",
+    firstName: "", lastName: "", dob: "", address: "", age: "", gender: "Male",
+    bloodType: "", medicalConditions: "", allergies: "", medications: "", health_notes: "", enrollmentDate: "", programName: "",
   });
 
   // Existing parent search
@@ -57,82 +26,46 @@ export default function AddChild() {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedExistingParents, setSelectedExistingParents] = useState({});
 
-  // Demo existing parents
-  const existingParents = [
-    {
-      id: 1,
-      firstName: "John",
-      lastName: "Silva",
-      nic: "123456789V",
-      email: "john@example.com",
-      contact: "+94701234567",
-      occupation: "Engineer",
-      address: "123 Main Street, Colombo 3",
-      type: "father",
-    },
-    {
-      id: 2,
-      firstName: "Maria",
-      lastName: "Perera",
-      nic: "987654321V",
-      email: "maria@example.com",
-      contact: "+94702345678",
-      occupation: "Doctor",
-      address: "456 Oak Avenue, Colombo 5",
-      type: "mother",
-    },
-    {
-      id: 3,
-      firstName: "Robert",
-      lastName: "Jayasinghe",
-      nic: "555666777V",
-      email: "robert@example.com",
-      contact: "+94703456789",
-      occupation: "Businessman",
-      address: "789 Elm Road, Colombo 7",
-      type: "guardian",
-    },
-  ];
+  // No mock data needed anymore
+  const [loading, setLoading] = useState(false);
 
-  // ==================== HANDLER FUNCTIONS ====================
 
+  const [birthCertificate, setBirthCertificate] = useState(null);
+
+  // ==================== HANDLERS ====================
   const handleParentChange = (e) => {
     const { name, value } = e.target;
-
     setParentData((prev) => ({
       ...prev,
-      [selectedRole]: {
-        ...prev[selectedRole],
-        [name]: value,
-      },
+      [selectedRole]: { ...prev[selectedRole], [name]: value },
     }));
   };
 
   const handleChildChange = (e) => {
     const { name, value } = e.target;
-    setChild((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setChild((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSearchParent = () => {
-    if (!searchNIC.trim()) {
-      setSearchResults([]);
-      return;
+  const handleSearchParent = async () => {
+    if (!searchNIC.trim()) { setSearchResults([]); return; }
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/admin/parents/search?nic=${searchNIC}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setSearchResults(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-
-    const results = existingParents.filter((p) =>
-      p.nic.toLowerCase().includes(searchNIC.toLowerCase())
-    );
-    setSearchResults(results);
   };
+
 
   const handleSelectExistingParent = (parent) => {
-    setSelectedExistingParents({
-      ...selectedExistingParents,
-      [parent.type]: parent,
-    });
+    setSelectedExistingParents({ ...selectedExistingParents, [parent.type]: parent });
     setSearchNIC("");
     setSearchResults([]);
   };
@@ -143,558 +76,305 @@ export default function AddChild() {
     setSelectedExistingParents(newSelected);
   };
 
-  const generateTempPassword = () => {
-    const chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$";
-    let password = "";
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
-  };
-
   const handleRegister = async (e) => {
     e.preventDefault();
-
-    // Collect all filled new parents
-    const filledNewParents = Object.entries(parentData)
-      .filter(([_, parent]) => parent.firstName && parent.lastName && parent.nic && parent.contact)
-      .map(([role, parent]) => ({
-        ...parent,
-        type: role,
-        tempPassword: generateTempPassword(),
-      }));
-
-    // Collect selected existing parents
-    const selectedExisting = Object.values(selectedExistingParents);
-
-    // Combine all parents
-    const allParents = [...filledNewParents, ...selectedExisting];
-
-    // Validation
-    if (allParents.length === 0) {
-      alert("❌ Please add at least one parent/guardian.");
-      return;
-    }
-
-    if (!child.firstName || !child.lastName || !child.dob || !child.enrollmentDate) {
-      alert("❌ Please fill all required child fields.");
-      return;
-    }
-
-    // Prepare data
-    const registrationData = {
-      child: {
-        firstName: child.firstName,
-        lastName: child.lastName,
-        dob: child.dob,
-        gender: child.gender,
-        address: child.address,
-        bloodType: child.bloodType,
-        medicalConditions: child.medicalConditions,
-        enrollmentDate: child.enrollmentDate,
-        programName: child.programName,
-      },
-      parents: allParents,
-      timestamp: new Date().toISOString(),
-    };
-
+    setLoading(true);
     try {
-      // TODO: Replace with actual backend API call
-      // const response = await fetch("/api/admin/register-child-parents", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(registrationData),
-      // });
+      const token = localStorage.getItem("token");
 
-      console.log("Registration data:", registrationData);
+      // Prepare parents array
+      const parentsArray = [];
 
-      let message = "✅ Child & Parents registered successfully!\n\n";
-      message += "Registered Parents:\n";
-      allParents.forEach((parent) => {
-        message += `\n👤 ${parent.firstName} ${parent.lastName} (${parent.type})`;
-        if (parent.tempPassword) {
-          message += `\n   Password: ${parent.tempPassword}`;
+      // Add existing parents (already in the array)
+      Object.keys(selectedExistingParents).forEach(type => {
+        const p = selectedExistingParents[type];
+        parentsArray.push({
+          id: p.id,
+          email: p.email,
+          nic: p.nic,
+          type: type // father/mother/guardian
+        });
+      });
+
+      // Add new parents that have been filled out in the form
+      if (parentMode === 'new') {
+        ['father', 'mother', 'guardian'].forEach(role => {
+          const data = parentData[role];
+          // Only add if at least firstName, NIC, and Email are provided
+          if (data.firstName && data.nic && data.email) {
+            // Generate a random temp password if not provided
+            const tempPass = Math.random().toString(36).slice(-8);
+
+            parentsArray.push({
+              firstName: data.firstName,
+              lastName: data.lastName,
+              email: data.email,
+              nic: data.nic,
+              contact: data.contact,
+              address: data.address,
+              occupation: data.occupation,
+              type: role,
+              tempPassword: tempPass
+            });
+          }
+        });
+      }
+
+      if (parentsArray.length === 0) {
+        alert("Please add at least one parent/guardian with required details (First Name, NIC, Email)");
+        setLoading(false);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("child", JSON.stringify(child));
+      formData.append("parents", JSON.stringify(parentsArray));
+      if (birthCertificate) {
+        formData.append("birthCertificate", birthCertificate);
+      }
+
+      const res = await fetch("http://localhost:5000/api/admin/register-child-parents", {
+        method: "POST",
+        headers: {
+          // "Content-Type": "application/json", // Remove Content-Type for FormData
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (res.ok) {
+        let msg = "Child and parents registered successfully!\n\n🆕 For the first login, parents should click 'Forgot Password' on the login page and verify their NIC and Email.";
+
+        // Show temp passwords for new accounts
+        const newParents = parentsArray.filter(p => !p.id);
+        if (newParents.length > 0) {
+          msg += "\n\n🔑 Temporary passwords created:";
+          newParents.forEach(p => {
+            msg += `\n- ${p.type.toUpperCase()} (${p.firstName}): ${p.tempPassword}`;
+          });
         }
-      });
 
-      alert(message);
-
-      // Reset form
-      setParentMode("new");
-      setSelectedRole("father");
-      setParentData({
-        father: {
-          firstName: "",
-          lastName: "",
-          nic: "",
-          contact: "",
-          email: "",
-          occupation: "",
-          address: "",
-        },
-        mother: {
-          firstName: "",
-          lastName: "",
-          nic: "",
-          contact: "",
-          email: "",
-          occupation: "",
-          address: "",
-        },
-        guardian: {
-          firstName: "",
-          lastName: "",
-          nic: "",
-          contact: "",
-          email: "",
-          occupation: "",
-          address: "",
-        },
-      });
-      setSearchNIC("");
-      setSearchResults([]);
-      setSelectedExistingParents({});
-      setChild({
-        firstName: "",
-        lastName: "",
-        dob: "",
-        address: "",
-        age: "",
-        gender: "Male",
-        bloodType: "",
-        medicalConditions: "",
-        enrollmentDate: "",
-        programName: "",
-      });
-
-      navigate("/admin/children");
-    } catch (error) {
-      console.error("Registration error:", error);
-      alert("❌ Error during registration. Please try again.");
+        alert(msg);
+        navigate("/admin/children");
+      } else {
+        const err = await res.json();
+        alert(err.message || "Registration failed");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Connectivity error");
+    } finally {
+      setLoading(false);
     }
   };
+
 
   const currentParentData = parentData[selectedRole];
 
-  // ==================== RENDER ====================
-
   return (
-    <div className="ac-container">
-      <main className="ac-main">
-        <div className="ac-header">
-          <h1>Register Child & Parents</h1>
-          <p>
-            Add a new child to the system and register their parents/guardians
-          </p>
+    <div>
+      <header className="ad-header">
+        <div>
+          <h1>Register New Child</h1>
+          <p className="ad-header-subtitle">Enroll a new child and assign parents/guardians</p>
         </div>
+      </header>
 
-        <form onSubmit={handleRegister} className="ac-form">
-          {/* ==================== PARENT REGISTRATION SECTION ==================== */}
-          <div className="ac-section-card">
-            <div className="ac-section-header">
-              <h2>Parent/Guardian Registration</h2>
-              <p>Fill in details for each parent type (Father, Mother, Guardian)</p>
-            </div>
+      <form onSubmit={handleRegister} className="ad-form-card" style={{ maxWidth: '1000px', margin: '0 auto' }}>
 
-            {/* MODE SELECTOR - Add New or Existing Parent */}
-            <div className="ac-mode-selector">
-              <button
-                type="button"
-                className={`ac-mode-btn ${parentMode === "new" ? "active" : ""}`}
-                onClick={() => setParentMode("new")}
-              >
-                ➕ Add New Parent
-              </button>
-              <button
-                type="button"
-                className={`ac-mode-btn ${parentMode === "existing" ? "active" : ""}`}
-                onClick={() => setParentMode("existing")}
-              >
-                🔍 Existing Parent
-              </button>
-            </div>
+        {/* PARENT SECTION */}
+        <div style={{ marginBottom: '32px' }}>
+          <h2 style={{ fontSize: '18px', marginBottom: '16px', color: 'var(--ad-text-primary)' }}>Parent/Guardian Details</h2>
 
-            {/* ==================== NEW PARENT FORM ==================== */}
-            {parentMode === "new" && (
-              <>
-                {/* ROLE SELECTOR TABS */}
-                <div className="ac-role-buttons">
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button type="button"
+              className={parentMode === 'new' ? 'btn-primary' : 'btn-secondary'}
+              onClick={() => setParentMode("new")}
+            >
+              Add New Parent
+            </button>
+            <button type="button"
+              className={parentMode === 'existing' ? 'btn-primary' : 'btn-secondary'}
+              onClick={() => setParentMode("existing")}
+            >
+              Existing Parent
+            </button>
+          </div>
+
+          {parentMode === 'new' && (
+            <>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                {['father', 'mother', 'guardian'].map(role => (
                   <button
+                    key={role}
                     type="button"
-                    className={`ac-role-btn ${selectedRole === "father" ? "active" : ""}`}
-                    onClick={() => setSelectedRole("father")}
+                    onClick={() => setSelectedRole(role)}
+                    style={{
+                      background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer',
+                      fontWeight: 600, color: selectedRole === role ? 'var(--ad-accent)' : '#64748b',
+                      borderBottom: selectedRole === role ? '2px solid var(--ad-accent)' : 'none'
+                    }}
                   >
-                    👨 Father
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
                   </button>
-                  <button
-                    type="button"
-                    className={`ac-role-btn ${selectedRole === "mother" ? "active" : ""}`}
-                    onClick={() => setSelectedRole("mother")}
-                  >
-                    👩 Mother
-                  </button>
-                  <button
-                    type="button"
-                    className={`ac-role-btn ${selectedRole === "guardian" ? "active" : ""}`}
-                    onClick={() => setSelectedRole("guardian")}
-                  >
-                    🛡️ Guardian
-                  </button>
+                ))}
+              </div>
+
+              <div className="ad-form-row">
+                <div className="ad-form-group">
+                  <label>First Name</label>
+                  <input className="ad-input" name="firstName" value={currentParentData.firstName} onChange={handleParentChange} />
                 </div>
-
-                {/* PARENT FORM */}
-                <div className="ac-parent-form">
-                  <h3>{selectedRole.toUpperCase()} Information</h3>
-
-                  <div className="ac-field-grid">
-                <div className="ac-field">
-                  <label>First Name *</label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    placeholder="Enter first name"
-                    value={currentParentData.firstName}
-                    onChange={handleParentChange}
-                    required
-                  />
+                <div className="ad-form-group">
+                  <label>Last Name</label>
+                  <input className="ad-input" name="lastName" value={currentParentData.lastName} onChange={handleParentChange} />
                 </div>
-                <div className="ac-field">
-                  <label>Last Name *</label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    placeholder="Enter last name"
-                    value={currentParentData.lastName}
-                    onChange={handleParentChange}
-                    required
-                  />
+              </div>
+              <div className="ad-form-row">
+                <div className="ad-form-group">
+                  <label>NIC</label>
+                  <input className="ad-input" name="nic" value={currentParentData.nic} onChange={handleParentChange} />
+                </div>
+                <div className="ad-form-group">
+                  <label>Contact</label>
+                  <input className="ad-input" name="contact" value={currentParentData.contact} onChange={handleParentChange} />
                 </div>
               </div>
 
-              <div className="ac-field-grid">
-                <div className="ac-field">
-                  <label>NIC / ID Number *</label>
-                  <input
-                    type="text"
-                    name="nic"
-                    placeholder="e.g., 123456789V"
-                    value={currentParentData.nic}
-                    onChange={handleParentChange}
-                    required
-                  />
-                </div>
-                <div className="ac-field">
-                  <label>Contact Number *</label>
-                  <input
-                    type="tel"
-                    name="contact"
-                    placeholder="+94 701 234 567"
-                    value={currentParentData.contact}
-                    onChange={handleParentChange}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="ac-field-grid">
-                <div className="ac-field">
+              <div className="ad-form-row">
+                <div className="ad-form-group">
                   <label>Email Address</label>
-                  <input
-                    type="email"
-                    name="email"
-                    placeholder="Enter email address"
-                    value={currentParentData.email}
-                    onChange={handleParentChange}
-                  />
+                  <input className="ad-input" type="email" name="email" value={currentParentData.email} onChange={handleParentChange} />
                 </div>
-                <div className="ac-field">
+                <div className="ad-form-group">
                   <label>Occupation</label>
-                  <input
-                    type="text"
-                    name="occupation"
-                    placeholder="Enter occupation"
-                    value={currentParentData.occupation}
-                    onChange={handleParentChange}
-                  />
+                  <input className="ad-input" name="occupation" value={currentParentData.occupation} onChange={handleParentChange} />
                 </div>
               </div>
 
-              <div className="ac-field">
-                <label>Residential Address</label>
+              <div className="ad-form-group">
+                <label>Address</label>
                 <textarea
+                  className="ad-input"
                   name="address"
-                  placeholder="Enter full residential address"
                   value={currentParentData.address}
                   onChange={handleParentChange}
-                  rows="3"
-                ></textarea>
+                  rows={2}
+                  style={{ resize: 'none' }}
+                />
               </div>
+            </>
+          )}
 
-              <p className="ac-form-hint">
-                💡 Fill in the {selectedRole} details above. Click another parent tab to fill their details or leave empty to skip.
-              </p>
-                </div>
-              </>
-            )}
-
-            {/* ==================== EXISTING PARENT SEARCH ==================== */}
-            {parentMode === "existing" && (
-              <>
-                {/* Search Input */}
-                <div className="ac-subsection">
-                  <label className="ac-subsection-label">Search by NIC/ID Number</label>
-                  <div className="ac-search-group">
-                    <input
-                      type="text"
-                      placeholder="Enter NIC number (e.g., 123456789V)"
-                      value={searchNIC}
-                      onChange={(e) => setSearchNIC(e.target.value)}
-                      className="ac-search-input"
-                    />
-                    <button
-                      type="button"
-                      className="ac-search-btn"
-                      onClick={handleSearchParent}
-                    >
-                      🔍 Search
-                    </button>
-                  </div>
-                </div>
-
-                {/* Search Results */}
-                {searchResults.length > 0 && (
-                  <div className="ac-subsection">
-                    <label className="ac-subsection-label">Search Results</label>
-                    <div className="ac-results-list">
-                      {searchResults.map((result) => (
-                        <div key={result.id} className="ac-result-card">
-                          <div className="ac-result-header">
-                            <div>
-                              <h4>{result.firstName} {result.lastName}</h4>
-                              <span className="ac-result-type">{result.type}</span>
-                            </div>
-                            <button
-                              type="button"
-                              className="ac-result-select-btn"
-                              onClick={() => handleSelectExistingParent(result)}
-                            >
-                              ✓ Select
-                            </button>
-                          </div>
-                          <p className="ac-result-info">📋 NIC: {result.nic}</p>
-                          <p className="ac-result-info">📞 {result.contact}</p>
-                          <p className="ac-result-info">💼 {result.occupation}</p>
-                          <p className="ac-result-info">📍 {result.address}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {searchNIC && searchResults.length === 0 && (
-                  <div className="ac-no-results">
-                    ❌ No parents found with that NIC number.
-                  </div>
-                )}
-
-                {/* Selected Existing Parents */}
-                {Object.keys(selectedExistingParents).length > 0 && (
-                  <div className="ac-subsection">
-                    <label className="ac-subsection-label">Selected Parents</label>
-                    <div className="ac-selected-parents-grid">
-                      {Object.values(selectedExistingParents).map((parent) => (
-                        <div key={parent.id} className="ac-selected-parent-card">
-                          <div className="ac-selected-header">
-                            <div>
-                              <h4>{parent.firstName} {parent.lastName}</h4>
-                              <span className="ac-parent-badge">{parent.type}</span>
-                            </div>
-                            <button
-                              type="button"
-                              className="ac-remove-btn"
-                              onClick={() => handleRemoveExistingParent(parent.type)}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          <p><strong>NIC:</strong> {parent.nic}</p>
-                          <p><strong>Contact:</strong> {parent.contact}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* ==================== CHILD REGISTRATION SECTION ==================== */}
-          <div className="ac-section-card">
-            <div className="ac-section-header">
-              <h2>Child Registration</h2>
-              <p>Add child's personal and enrollment information</p>
-            </div>
-
-            {/* Personal Information */}
-            <div className="ac-subsection">
-              <label className="ac-subsection-label">Personal Information</label>
-              <div className="ac-field-grid">
-                <div className="ac-field">
-                  <label>First Name *</label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    placeholder="Enter child's first name"
-                    value={child.firstName}
-                    onChange={handleChildChange}
-                    required
-                  />
-                </div>
-                <div className="ac-field">
-                  <label>Last Name *</label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    placeholder="Enter child's last name"
-                    value={child.lastName}
-                    onChange={handleChildChange}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="ac-field-grid">
-                <div className="ac-field">
-                  <label>Date of Birth *</label>
-                  <input
-                    type="date"
-                    name="dob"
-                    value={child.dob}
-                    onChange={handleChildChange}
-                    required
-                  />
-                </div>
-                <div className="ac-field">
-                  <label>Age</label>
-                  <input
-                    type="number"
-                    name="age"
-                    placeholder="Enter age"
-                    value={child.age}
-                    onChange={handleChildChange}
-                  />
-                </div>
-              </div>
-
-              <div className="ac-field-grid">
-                <div className="ac-field">
-                  <label>Gender</label>
-                  <div className="ac-gender-selector">
-                    <button
-                      type="button"
-                      className={`ac-gender-btn ${child.gender === "Male" ? "active" : ""}`}
-                      onClick={() => setChild({ ...child, gender: "Male" })}
-                    >
-                      👦 Male
-                    </button>
-                    <button
-                      type="button"
-                      className={`ac-gender-btn ${child.gender === "Female" ? "active" : ""}`}
-                      onClick={() => setChild({ ...child, gender: "Female" })}
-                    >
-                      👧 Female
-                    </button>
-                  </div>
-                </div>
-                <div className="ac-field">
-                  <label>Address</label>
-                  <input
-                    type="text"
-                    name="address"
-                    placeholder="Enter residential address"
-                    value={child.address}
-                    onChange={handleChildChange}
-                  />
-                </div>
+          {parentMode === 'existing' && (
+            <div className="ad-form-group">
+              <label>Search Parent by NIC</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input className="ad-input" placeholder="Enter NIC..." value={searchNIC} onChange={e => setSearchNIC(e.target.value)} />
+                <button type="button" className="btn-primary" onClick={handleSearchParent}>Search</button>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Health Information */}
-            <div className="ac-subsection">
-              <label className="ac-subsection-label">Health & Medical Information</label>
-              <div className="ac-field-grid">
-                <div className="ac-field">
-                  <label>Blood Type</label>
-                  <input
-                    type="text"
-                    name="bloodType"
-                    placeholder="e.g., A+, B-, O+"
-                    value={child.bloodType}
-                    onChange={handleChildChange}
-                  />
-                </div>
-                <div className="ac-field">
-                  <label>Medical Conditions</label>
-                  <input
-                    type="text"
-                    name="medicalConditions"
-                    placeholder="e.g., Asthma, Allergies"
-                    value={child.medicalConditions}
-                    onChange={handleChildChange}
-                  />
-                </div>
-              </div>
+        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '24px 0' }} />
+
+        {/* CHILD SECTION */}
+        <div style={{ marginBottom: '32px' }}>
+          <h2 style={{ fontSize: '18px', marginBottom: '16px', color: 'var(--ad-text-primary)' }}>Child Information</h2>
+
+          <div className="ad-form-row">
+            <div className="ad-form-group">
+              <label>First Name *</label>
+              <input className="ad-input" name="firstName" value={child.firstName} onChange={handleChildChange} required />
             </div>
-
-            {/* Enrollment Information */}
-            <div className="ac-subsection">
-              <label className="ac-subsection-label">Enrollment Information</label>
-              <div className="ac-field-grid">
-                <div className="ac-field">
-                  <label>Enrollment Date *</label>
-                  <input
-                    type="date"
-                    name="enrollmentDate"
-                    value={child.enrollmentDate}
-                    onChange={handleChildChange}
-                    required
-                  />
-                </div>
-                <div className="ac-field">
-                  <label>Program *</label>
-                  <select
-                    name="programName"
-                    value={child.programName}
-                    onChange={handleChildChange}
-                    required
-                  >
-                    <option value="">Select Program</option>
-                    <option value="Playgroup">Playgroup</option>
-                    <option value="Pre-Nursery">Pre-Nursery</option>
-                    <option value="Nursery">Nursery</option>
-                    <option value="Reception">Reception</option>
-                  </select>
-                </div>
-              </div>
+            <div className="ad-form-group">
+              <label>Last Name *</label>
+              <input className="ad-input" name="lastName" value={child.lastName} onChange={handleChildChange} required />
             </div>
           </div>
 
-          {/* ACTION BUTTONS */}
-          <div className="ac-button-group">
-            <button
-              type="button"
-              className="ac-btn-cancel"
-              onClick={() => navigate("/admin/children")}
-            >
-              ← Cancel
-            </button>
-            <button type="submit" className="ac-btn-submit">
-              ✓ Register Child & Parents
-            </button>
+          <div className="ad-form-row">
+            <div className="ad-form-group">
+              <label>Date of Birth *</label>
+              <input type="date" className="ad-input" name="dob" value={child.dob} onChange={handleChildChange} required />
+            </div>
+            <div className="ad-form-group">
+              <label>Gender</label>
+              <select className="ad-select" name="gender" value={child.gender} onChange={handleChildChange}>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
           </div>
-        </form>
-      </main>
-    </div>
+
+          <div className="ad-form-row">
+            <div className="ad-form-group">
+              <label>Birth Certificate</label>
+              <input type="file" className="ad-input" name="birthCertificate" onChange={(e) => setBirthCertificate(e.target.files[0])} />
+            </div>
+            <div className="ad-form-group">
+              <label>Enrollment Date</label>
+              <input type="date" className="ad-input" name="enrollmentDate" value={child.enrollmentDate} onChange={handleChildChange} />
+            </div>
+          </div>
+
+          <div className="ad-form-row">
+            <div className="ad-form-group">
+              <label>Program Name</label>
+              <input className="ad-input" name="programName" value={child.programName} onChange={handleChildChange} placeholder="e.g. Montessori, Playgroup" />
+            </div>
+            <div className="ad-form-group">
+              <label>Home Address</label>
+              <input className="ad-input" name="address" value={child.address} onChange={handleChildChange} placeholder="Enter home address" />
+            </div>
+          </div>
+
+          <h3 style={{ fontSize: '16px', margin: '24px 0 16px 0', color: 'var(--ad-text-primary)' }}>Health Information (Optional)</h3>
+          <div className="ad-form-row">
+            <div className="ad-form-group">
+              <label>Blood Type</label>
+              <select className="ad-input" name="bloodType" value={child.bloodType} onChange={handleChildChange}>
+                <option value="">Unknown</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+              </select>
+            </div>
+            <div className="ad-form-group">
+              <label>Allergies</label>
+              <input className="ad-input" name="allergies" value={child.allergies} onChange={handleChildChange} placeholder="e.g. Peanuts, Dairy" />
+            </div>
+          </div>
+
+          <div className="ad-form-row">
+            <div className="ad-form-group">
+              <label>Medical Conditions</label>
+              <input className="ad-input" name="medicalConditions" value={child.medicalConditions} onChange={handleChildChange} placeholder="e.g. Asthma, Diabetes" />
+            </div>
+            <div className="ad-form-group">
+              <label>Medications</label>
+              <input className="ad-input" name="medications" value={child.medications} onChange={handleChildChange} placeholder="e.g. Inhaler" />
+            </div>
+          </div>
+
+          <div className="ad-form-group">
+            <label>Health Notes</label>
+            <textarea className="ad-input" name="health_notes" value={child.health_notes} onChange={handleChildChange} rows={3} placeholder="Any other health concerns or notes..." />
+          </div>
+
+        </div>
+
+        <div className="ad-form-actions">
+          <button type="button" className="btn-secondary" onClick={() => navigate("/admin/children")}>Cancel</button>
+          <button type="submit" className="btn-primary">Register child</button>
+        </div>
+      </form >
+    </div >
   );
 }

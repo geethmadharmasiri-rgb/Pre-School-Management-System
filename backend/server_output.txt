@@ -1,0 +1,5 @@
+[dotenv@17.2.3] injecting env (9) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+✅ UPDATED server.js RUNNING
+Server running on http://localhost:5000
+✅ MySQL Connected Successfully

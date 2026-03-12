@@ -16,7 +16,7 @@ function Programs() {
           <img src={playtimeImg} alt="Playtime Activities" />
           <h2>Play-Based Learning</h2>
           <p>
-            Engaging activities designed to stimulate curiosity, creativity, and 
+            Engaging activities designed to stimulate curiosity, creativity, and
             social skills through play and interactive exercises.
           </p>
         </div>
@@ -34,7 +34,7 @@ function Programs() {
           <img src={playtimeImg} alt="Physical Development" />
           <h2>Physical Development</h2>
           <p>
-            Activities that enhance fine and gross motor skills through fun exercises, 
+            Activities that enhance fine and gross motor skills through fun exercises,
             sports, and movement games.
           </p>
         </div>
@@ -43,7 +43,7 @@ function Programs() {
           <img src={learningImg} alt="Creative Arts" />
           <h2>Creative Arts</h2>
           <p>
-            Music, drawing, storytelling, and drama sessions to foster imagination 
+            Music, drawing, storytelling, and drama sessions to foster imagination
             and self-expression.
           </p>
         </div>

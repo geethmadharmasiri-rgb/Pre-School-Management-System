@@ -1,266 +1,266 @@
-import "./ParentDashboard.css";
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  FaChild,
-  FaBell,
-  FaCalendarAlt,
-  FaClipboardCheck,
-  FaBookOpen,
-  FaMoneyBillWave,
-  FaTimes,
-  FaSignOutAlt,
-} from "react-icons/fa";
+import { Icons } from "../components/Icons";
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
+  const [children, setChildren] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingChild, setEditingChild] = useState(null);
+  const [contactData, setContactData] = useState({ phone: "", address: "" });
+  const [userName, setUserName] = useState("Parent");
+  const [events, setEvents] = useState([]);
 
-  const [parent, setParent] = useState(null);
-  const [loadingParent, setLoadingParent] = useState(true);
-  const [parentError, setParentError] = useState("");
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUserName(user.name);
+      } catch (e) { }
+    }
+    fetchChildren();
+    fetchEvents();
+  }, []);
 
-  const [showEnrollModal, setShowEnrollModal] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(3);
-
-  // ✅ fallback (if DB call slow)
-  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const fallbackName = storedUser?.name || "Parent";
-
-  const upcomingEvents = [
-    { date: "Jan 18", title: "Parents Meeting - 2.00 PM" },
-    { date: "Jan 22", title: "Art Day 🎨" },
-    { date: "Jan 28", title: "Monthly Payment Due" },
-  ];
-
-  const children = [
-    { id: 1, name: "Dinu Perera", status: "ENROLLED" },
-    { id: 2, name: "Saraa", status: "PENDING" },
-  ];
-
-  // ✅ Logout
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/login");
+  const fetchEvents = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/events");
+      const data = await res.json();
+      const upcoming = (data || [])
+        .filter(ev => ev.status.toLowerCase() === 'upcoming')
+        .slice(0, 2)
+        .map(ev => ({
+          ...ev,
+          emoji: ev.title.toLowerCase().includes('sport') ? "🏆" :
+            ev.title.toLowerCase().includes('parent') ? "👨‍👩‍👧‍👦" : "📅"
+        }));
+      setEvents(upcoming);
+    } catch (err) {
+      console.error("Dashboard events fetch error:", err);
+    }
   };
 
-  // ✅ Load parent profile from backend
-  useEffect(() => {
-    const token = localStorage.getItem("token");
 
-    if (!token) {
-      navigate("/login");
-      return;
+  const fetchChildren = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/children", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setChildren(Array.isArray(data) ? data : []);
+
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    setLoadingParent(true);
-    setParentError("");
+  const handleEditContact = (child) => {
+    setEditingChild(child);
+    setContactData({ phone: child.contactNumber || "", address: child.address || "" });
+    setShowEditModal(true);
+  };
 
-    fetch("http://localhost:5000/api/parents/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (res) => {
-        const data = await res.json();
+  const saveContact = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/children/${editingChild.id}/contact`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(contactData),
+      });
+      if (res.ok) {
+        alert("Contact updated!");
+        setShowEditModal(false);
+        fetchChildren();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
-        // ✅ If token invalid / expired, force logout
-        if (res.status === 401) {
-          handleLogout();
-          throw new Error("Session expired. Please login again.");
-        }
-
-        if (!res.ok) throw new Error(data.message || "Failed to load parent profile");
-        return data;
-      })
-      .then((data) => {
-        setParent(data);
-      })
-      .catch((err) => {
-        setParentError(err.message || "Connection error");
-      })
-      .finally(() => setLoadingParent(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate]);
-
-  // ✅ Use DB name first, fallback to localStorage name
-  const displayName = parent?.name || fallbackName;
 
   return (
-    <div className="parent-dashboard">
-      {/* Top bar actions */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-        <button className="btn" onClick={handleLogout} type="button">
-          <FaSignOutAlt style={{ marginRight: 8 }} />
-          Logout
-        </button>
-      </div>
-
-      {parentError && (
-        <div style={{ margin: "10px 0", color: "red", fontWeight: 600 }}>
-          {parentError}
+    <div>
+      <header className="ad-header">
+        <div>
+          <h1>Parent Dashboard</h1>
+          <p className="ad-header-subtitle">Welcome back, {userName}</p>
         </div>
-      )}
 
-      <div className="top-row">
-        <div className="welcome-card">
+        <div className="notification">{Icons.bell}</div>
+      </header>
+
+      {/* STATS GRID */}
+      <div className="ad-cards">
+        <div className="ad-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{
+            width: '60px', height: '60px', borderRadius: '50%',
+            backgroundColor: "#e0f2fe", color: "#0ea5e9",
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <div className="icon big">{Icons.child}</div>
+          </div>
           <div>
-            <h2>{loadingParent ? "Loading..." : `Welcome back, ${displayName} 👋`}</h2>
-            <p>
-              Manage your children’s profiles and stay updated with school activities in one place.
-            </p>
-
-            {!loadingParent && parent && (
-              <p style={{ marginTop: 8, fontSize: 13, opacity: 0.85 }}>
-                {parent.email} {parent.phone ? `• ${parent.phone}` : ""}
-              </p>
-            )}
+            <h3 style={{ fontSize: '14px', color: '#64748b', fontWeight: 500, margin: '0 0 4px 0' }}>My Children</h3>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>{children.length}</div>
           </div>
         </div>
-
-        <div className="quick-widgets">
-          <div
-            className="widget-card clickable"
-            onClick={() => setUnreadCount(0)}
-          >
-            <div className="widget-title">
-              <FaBell /> Notifications
-              {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
-            </div>
-            <p className="widget-sub">Tap to view latest updates.</p>
+        <div className="ad-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{
+            width: '60px', height: '60px', borderRadius: '50%',
+            backgroundColor: "#fef3c7", color: "#f59e0b",
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <div className="icon big">{Icons.bell}</div>
           </div>
-
-          <div className="widget-card">
-            <div className="widget-title">
-              <FaCalendarAlt /> Upcoming
-            </div>
-
-            <div className="events-list">
-              {upcomingEvents.map((e, idx) => (
-                <div className="event-item" key={idx}>
-                  <span className="event-date">{e.date}</span>
-                  <span className="event-title">{e.title}</span>
-                </div>
-              ))}
-            </div>
-
-            <button className="small-btn" onClick={() => navigate("/calendar")} type="button">
-              Open Calendar
-            </button>
+          <div>
+            <h3 style={{ fontSize: '14px', color: '#64748b', fontWeight: 500, margin: '0 0 4px 0' }}>Notifications</h3>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>3</div>
           </div>
         </div>
       </div>
 
-      <div className="children-header">
-        <h3>My Children</h3>
-        <span className="archive-link" onClick={() => navigate("/archive")}>
-          View Archive
-        </span>
-      </div>
 
-      <div className="children-grid">
-        {children.map((child) => (
-          <div className="child-card" key={child.id}>
-            <span className={`status ${child.status === "ENROLLED" ? "enrolled" : "pending"}`}>
-              {child.status}
-            </span>
 
-            <div className="avatar">
-              <FaChild />
-            </div>
 
-            <h4>{child.name}</h4>
-
-            {child.status === "ENROLLED" ? (
-              <div className="quick-actions">
-                <button
-                  className="action-btn"
-                  onClick={() => navigate(`/attendance/${child.id}`)}
-                  type="button"
-                >
-                  <FaClipboardCheck /> Attendance
-                </button>
-                <button
-                  className="action-btn"
-                  onClick={() => navigate(`/homework/${child.id}`)}
-                  type="button"
-                >
-                  <FaBookOpen /> Homework
-                </button>
-                <button
-                  className="action-btn"
-                  onClick={() => navigate(`/payments/${child.id}`)}
-                  type="button"
-                >
-                  <FaMoneyBillWave /> Payments
-                </button>
+      {showEditModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+        }}>
+          <div className="ad-form-card" style={{ width: '100%', maxWidth: '400px', margin: '20px' }}>
+            <h2>Edit Contact Info</h2>
+            <form onSubmit={saveContact}>
+              <div className="ad-form-group">
+                <label>Phone Number</label>
+                <input
+                  className="ad-input"
+                  value={contactData.phone}
+                  onChange={e => setContactData({ ...contactData, phone: e.target.value })}
+                  required
+                />
               </div>
-            ) : (
-              <button
-                className="outline-btn"
-                onClick={() => alert("Your request is still pending approval.")}
-                type="button"
-              >
-                Check Status
-              </button>
-            )}
-
-            <button
-              className="primary-btn"
-              onClick={() => navigate(`/child-profile/${child.id}`)}
-              type="button"
-              disabled={child.status !== "ENROLLED"}
-              title={child.status !== "ENROLLED" ? "Wait until admin approves" : "Open child profile"}
-            >
-              View Profile
-            </button>
-          </div>
-        ))}
-
-        <div
-          className="child-card add-card"
-          onClick={() => setShowEnrollModal(true)}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="plus">+</div>
-          <p>Enroll Another Child</p>
-        </div>
-      </div>
-
-      {showEnrollModal && (
-        <div className="modal-overlay" onClick={() => setShowEnrollModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Enroll a Child</h3>
-              <button className="icon-btn" onClick={() => setShowEnrollModal(false)} type="button">
-                <FaTimes />
-              </button>
-            </div>
-
-            <p className="modal-sub">
-              If your child is already in the system, enter the Child ID to link your profile.
-            </p>
-
-            <label className="modal-label">Child ID</label>
-            <input className="modal-input" placeholder="e.g. ILA-CH-1023" />
-
-            <label className="modal-label">Child Name (Optional)</label>
-            <input className="modal-input" placeholder="Enter child name" />
-
-            <button
-              className="primary-btn modal-submit"
-              onClick={() => {
-                alert("Request submitted! Admin will review your request.");
-                setShowEnrollModal(false);
-              }}
-              type="button"
-            >
-              Submit Enrollment Request
-            </button>
+              <div className="ad-form-group">
+                <label>Address</label>
+                <textarea
+                  className="ad-input"
+                  style={{ height: '80px', padding: '12px' }}
+                  value={contactData.address}
+                  onChange={e => setContactData({ ...contactData, address: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="ad-form-actions">
+                <button type="button" className="btn-secondary" onClick={() => setShowEditModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      <footer>© 2026 ILA Kids Campus Management System</footer>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', marginTop: '32px' }}>
+        {/* LEFT COLUMN: CHILD PROFILES */}
+        <div className="ad-card" style={{ textAlign: 'left', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0 }}>My Children</h3>
+            <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }} onClick={() => navigate('/parent/children')}>View All</button>
+          </div>
+
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {children.length > 0 ? (
+              children.slice(0, 3).map((child) => (
+                <div
+                  key={child.id}
+                  onClick={() => child.status === 'approved' && navigate(`/parent/child-profile/${child.id}`)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '15px',
+                    padding: '16px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    border: '1px solid #f1f5f9',
+                    cursor: child.status === 'approved' ? 'pointer' : 'default',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => child.status === 'approved' && (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                >
+                  <div style={{ width: '45px', height: '45px', borderRadius: '50%', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                    {child.profile_picture ? (
+                      <img src={`http://localhost:5000/${child.profile_picture}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '24px' }}>{child.gender === 'Female' ? '👧' : '👦'}</span>
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: '#1e293b' }}>{child.first_name} {child.last_name}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>{child.className || "Assigning Class..."}</div>
+                  </div>
+                  <div style={{
+                    fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px',
+                    backgroundColor: child.status === 'approved' ? '#dcfce7' : '#ffedd5',
+                    color: child.status === 'approved' ? '#15803d' : '#9a3412'
+                  }}>
+                    {child.status ? child.status.charAt(0).toUpperCase() + child.status.slice(1) : 'Pending'}
+                  </div>
+                  {child.status === 'approved' && <div style={{ color: '#94a3b8' }}>→</div>}
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>No children enrolled yet.</p>
+                <button className="link-button" onClick={() => navigate('/parent/children')} style={{ marginTop: '8px' }}>Enroll a child now</button>
+              </div>
+            )}
+            {children.length > 3 && (
+              <div style={{ textAlign: 'center', fontSize: '12px', color: '#64748b' }}>
+                + {children.length - 3} more children
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: EVENTS & NOTIFICATIONS */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="ad-card" style={{ cursor: 'pointer', textAlign: 'left', alignItems: 'flex-start' }} onClick={() => navigate('/parent/events')}>
+            <h3 style={{ marginBottom: '20px' }}>Upcoming Events</h3>
+            <div style={{ width: '100%' }}>
+              {events.length > 0 ? events.map((event, i) => (
+                <div key={i} style={{ display: 'flex', gap: '15px', padding: '12px 0', borderBottom: i === 0 && events.length > 1 ? '1px solid #f1f5f9' : 'none' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>{event.emoji}</div>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: '14px' }}>{event.title}</p>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(event.date).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              )) : (
+                <p style={{ fontSize: '13px', color: '#64748b' }}>No upcoming events.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="ad-card" style={{ textAlign: 'left', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate('/parent/notifications')}>
+            <h3 style={{ marginBottom: '15px' }}>Recent Notifications</h3>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '15px' }}>
+              <div style={{ backgroundColor: '#f1f5f9', padding: '8px', borderRadius: '8px' }}>{Icons.bell}</div>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>You have information regarding the upcoming semester activities.</p>
+            </div>
+            <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>View All</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

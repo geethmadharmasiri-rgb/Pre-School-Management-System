@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./TeacherManagement.css";
+import { Icons } from "../components/Icons";
 
 export default function TeacherManagement() {
   const navigate = useNavigate();
@@ -16,43 +16,33 @@ export default function TeacherManagement() {
   });
 
   // Demo data
-  const [teachers, setTeachers] = useState([
-    {
-      id: 1,
-      empId: "EMP001",
-      name: "Ms. Clara Perera",
-      assignedClass: "Class A",
-      email: "clara.perera@email.com",
-      contact: "+94 77 111 2222",
-    },
-    {
-      id: 2,
-      empId: "EMP002",
-      name: "Mr. Erasha",
-      assignedClass: "Class B",
-      email: "erasha.ekene@email.com",
-      contact: "+94 77 333 4444",
-    },
-    {
-      id: 3,
-      empId: "EMP003",
-      name: "Ms. Sonali Perera",
-      assignedClass: "Class C",
-      email: "sonali.perera@email.com",
-      contact: "+94 77 555 6666",
-    },
-  ]);
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    fetchTeachers();
+  }, []);
+
+  const fetchTeachers = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/admin/teachers", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setTeachers(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const filtered = teachers.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
     t.empId.toLowerCase().includes(search.toLowerCase())
   );
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/login");
-  };
 
   const handleEditTeacher = (teacher) => {
     setEditingId(teacher.id);
@@ -80,6 +70,8 @@ export default function TeacherManagement() {
           t.id === editingId ? { ...formData, id: editingId } : t
         )
       );
+    } else {
+      setTeachers([...teachers, { ...formData, id: Date.now() }]);
     }
     handleCloseForm();
   };
@@ -90,312 +82,178 @@ export default function TeacherManagement() {
   };
 
   return (
-    <div className="ad-container">
-      {/* Sidebar */}
-      <aside className="ad-sidebar">
-        <h2 className="ad-logo">ILA KIDS CAMPUS</h2>
-
-        <nav className="ad-menu">
-          <button className="ad-menu-item" onClick={() => navigate("/admin")}>
-            <span className="icon">{Icons.dashboard}</span>
-            Dashboard
-          </button>
-
-          <button className="ad-menu-item" onClick={() => navigate("/admin/children")}>
-            <span className="icon">{Icons.child}</span>
-            Child Management
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.parents}</span>
-            Parent Management
-          </button>
-
-          <button className="ad-menu-item active">
-            <span className="icon">{Icons.teacher}</span>
-            Teacher Management
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.class}</span>
-            Class Allocation
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.attendance}</span>
-            Attendance
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.payment}</span>
-            Payments
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.reports}</span>
-            Reports
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.bell}</span>
-            Notifications
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.events}</span>
-            Events
-          </button>
-        </nav>
-
-        <button className="ad-logout" onClick={handleLogout}>
-          <span className="icon">{Icons.logout}</span>
-          Logout
-        </button>
-      </aside>
-
-      {/* Main Content */}
-      <main className="ad-main">
-        <header className="ad-header">
+    <div>
+      <header className="ad-header">
+        <div>
           <h1>Teacher Management</h1>
-          <div className="notification">{Icons.bell}</div>
-        </header>
+          <p className="ad-header-subtitle">Manage staff details and class assignments</p>
+        </div>
+        <div className="notification">{Icons.bell}</div>
+      </header>
 
-        {/* SEARCH AND ADD SECTION */}
-        <section className="tm-header-section">
-          <div className="tm-search-container">
-            <input
-              type="text"
-              placeholder="Search teacher by name or ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="tm-search-input"
-            />
-            <p className="tm-search-subtitle">Search by teacher name or employee ID</p>
-          </div>
-          <button className="tm-add-btn" onClick={() => navigate("/admin/teachers/new")}>
-            + Add Teacher
-          </button>
-        </section>
+      {/* SEARCH AND ADD SECTION */}
+      <div className="filters-section">
+        <div className="search-input-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+          <span style={{ width: '20px', color: '#94a3b8' }}>{Icons.search}</span>
+          <input
+            type="text"
+            placeholder="Search teacher by name or ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="ad-input"
+            style={{ border: 'none', background: 'transparent', padding: '0' }}
+          />
+        </div>
+        <button className="btn-primary" onClick={() => navigate("/admin/teachers/new")}>
+          {Icons.plus} Add Teacher
+        </button>
+      </div>
 
-        {/* TEACHER TABLE CARD */}
-        <section className="tm-table-section">
-          <div className="tm-card">
-            <div className="tm-cardHeader">
-              <h2>Teachers List</h2>
-              <p>View and manage all teachers</p>
+      {/* TEACHER TABLE */}
+      <div className="table-container">
+        <table className="ad-table">
+          <thead>
+            <tr>
+              <th>Teacher Name</th>
+              <th>Employee ID</th>
+              <th>Assigned Class</th>
+              <th>Email</th>
+              <th>Contact</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((teacher) => (
+              <tr key={teacher.id}>
+                <td style={{ fontWeight: 500 }}>{teacher.name}</td>
+                <td>{teacher.empId}</td>
+                <td>{teacher.assignedClass}</td>
+                <td>{teacher.email}</td>
+                <td>{teacher.contact}</td>
+                <td>
+                  <button
+                    className="action-btn edit"
+                    onClick={() => handleEditTeacher(teacher)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="action-btn delete"
+                    onClick={() => handleDelete(teacher.id)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                  No teachers found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ADD/EDIT TEACHER MODAL */}
+      {showForm && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+        }}>
+          <div className="ad-form-card" style={{ width: '100%', maxWidth: '600px', margin: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0 }}>{editingId ? "Edit Teacher" : "Add Teacher"}</h2>
+              <button onClick={handleCloseForm} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>
             </div>
 
-            <table className="tm-table">
-              <thead>
-                <tr>
-                  <th>Teacher Name</th>
-                  <th>Employee ID</th>
-                  <th>Assigned Class</th>
-                  <th>Email</th>
-                  <th>Contact</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((teacher) => (
-                  <tr key={teacher.id}>
-                    <td>{teacher.name}</td>
-                    <td>{teacher.empId}</td>
-                    <td>{teacher.assignedClass}</td>
-                    <td>{teacher.email}</td>
-                    <td>{teacher.contact}</td>
-                    <td className="tm-actions">
-                      <button
-                        className="tm-edit"
-                        onClick={() => handleEditTeacher(teacher)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="tm-delete"
-                        onClick={() => handleDelete(teacher.id)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan="6" className="tm-empty">
-                      No teachers found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* EDIT TEACHER MODAL */}
-        {showForm && (
-          <div className="cm-modal-overlay" onClick={handleCloseForm}>
-            <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="cm-modal-header">
-                <h2>Edit Teacher</h2>
-                <button className="cm-close" onClick={handleCloseForm}>
-                  ✕
-                </button>
+            <form onSubmit={handleSubmit}>
+              <div className="ad-form-group">
+                <label>Teacher Name *</label>
+                <input
+                  type="text"
+                  className="ad-input"
+                  placeholder="Enter full name"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  required
+                />
               </div>
 
-              <form className="cm-form" onSubmit={handleSubmit}>
-                <div className="cm-form-group">
-                  <label>Teacher Name *</label>
+              <div className="ad-form-row">
+                <div className="ad-form-group">
+                  <label>Employee ID *</label>
                   <input
                     type="text"
-                    placeholder="Enter full name"
-                    value={formData.name}
+                    className="ad-input"
+                    placeholder="e.g., EMP-001"
+                    value={formData.empId}
                     onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
+                      setFormData({ ...formData, empId: e.target.value })
                     }
                     required
                   />
                 </div>
 
-                <div className="cm-form-row">
-                  <div className="cm-form-group">
-                    <label>Employee ID *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., EMP-001"
-                      value={formData.empId}
-                      onChange={(e) =>
-                        setFormData({ ...formData, empId: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
+                <div className="ad-form-group">
+                  <label>Assigned Class</label>
+                  <input
+                    type="text"
+                    className="ad-input"
+                    placeholder="e.g., Class A"
+                    value={formData.assignedClass}
+                    onChange={(e) =>
+                      setFormData({ ...formData, assignedClass: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
 
-                  <div className="cm-form-group">
-                    <label>Assigned Class *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Class A"
-                      value={formData.assignedClass}
-                      onChange={(e) =>
-                        setFormData({ ...formData, assignedClass: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
+              <div className="ad-form-row">
+                <div className="ad-form-group">
+                  <label>Email Address</label>
+                  <input
+                    type="email"
+                    className="ad-input"
+                    placeholder="Enter email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                  />
                 </div>
 
-                <div className="cm-form-row">
-                  <div className="cm-form-group">
-                    <label>Email Address *</label>
-                    <input
-                      type="email"
-                      placeholder="Enter email address"
-                      value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-
-                  <div className="cm-form-group">
-                    <label>Contact Number *</label>
-                    <input
-                      type="text"
-                      placeholder="Enter contact number"
-                      value={formData.contact}
-                      onChange={(e) =>
-                        setFormData({ ...formData, contact: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
+                <div className="ad-form-group">
+                  <label>Contact Number</label>
+                  <input
+                    type="text"
+                    className="ad-input"
+                    placeholder="Enter contact number"
+                    value={formData.contact}
+                    onChange={(e) =>
+                      setFormData({ ...formData, contact: e.target.value })
+                    }
+                  />
                 </div>
+              </div>
 
-                <div className="cm-form-actions">
-                  <button type="button" className="back" onClick={handleCloseForm}>
-                    Back
-                  </button>
-                  <button type="submit" className="submit">
-                    Update Teacher
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="ad-form-actions">
+                <button type="button" className="btn-secondary" onClick={handleCloseForm}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  {editingId ? "Update Teacher" : "Add Teacher"}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }
-
-/* ================== ICONS ================== */
-
-const Icons = {
-  dashboard: (
-    <svg viewBox="0 0 24 24">
-      <path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-18v6h8V3h-8z" />
-    </svg>
-  ),
-  child: (
-    <svg viewBox="0 0 24 24">
-      <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4z" />
-      <path d="M12 14c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z" />
-    </svg>
-  ),
-  parents: (
-    <svg viewBox="0 0 24 24">
-      <path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4z" />
-      <path d="M8 12a3.5 3.5 0 1 0-3.5-3.5A3.5 3.5 0 0 0 8 12z" />
-      <path d="M16 13c-3.3 0-6 1.8-6 4v3h12v-3c0-2.2-2.7-4-6-4z" />
-    </svg>
-  ),
-  teacher: (
-    <svg viewBox="0 0 24 24">
-      <path d="M12 3L2 9l10 6 10-6-10-6z" />
-      <path d="M4 13v4l8 4 8-4v-4l-8 4-8-4z" />
-    </svg>
-  ),
-  class: (
-    <svg viewBox="0 0 24 24">
-      <path d="M3 4h18v2H3zM3 8h18v12H3z" />
-    </svg>
-  ),
-  attendance: (
-    <svg viewBox="0 0 24 24">
-      <path d="M7 2h2v2h6V2h2v2h3v18H4V4h3V2z" />
-      <path d="M6 8h12v12H6z" />
-    </svg>
-  ),
-  payment: (
-    <svg viewBox="0 0 24 24">
-      <path d="M3 5h18v14H3z" />
-      <path d="M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6z" />
-    </svg>
-  ),
-  reports: (
-    <svg viewBox="0 0 24 24">
-      <path d="M3 3h18v18H3z" />
-      <path d="M7 13h2v4H7zm4-6h2v10h-2zm4 3h2v7h-2z" />
-    </svg>
-  ),
-  events: (
-    <svg viewBox="0 0 24 24">
-      <path d="M7 2h2v2h6V2h2v2h3v18H4V4h3V2z" />
-    </svg>
-  ),
-  bell: (
-    <svg viewBox="0 0 24 24">
-      <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2z" />
-      <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2v1h16v-1z" />
-    </svg>
-  ),
-  logout: (
-    <svg viewBox="0 0 24 24">
-      <path d="M10 17l4-4-4-4v3H3v2h7z" />
-      <path d="M14 3h7v18h-7v-2h5V5h-5z" />
-    </svg>
-  ),
-};

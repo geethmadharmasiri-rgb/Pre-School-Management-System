@@ -1,0 +1,9 @@
+﻿[dotenv@17.2.3] injecting env (7) from .env -- tip: ≡ƒöÉ prevent building .env in docker: https://dotenvx.com/prebuild
+≡ƒöä Initializing Database Schema...
+Γ£à MySQL Connected Successfully
+Γ£à Table 'children' checked/created.
+Γ£à Migrated 'full_name' to 'first_name' and 'last_name'.
+Γ£à Table 'teachers' checked/created.
+Γ£à Table 'classes' checked/created.
+Γ£à Table 'parent_child' checked/created.
+≡ƒÄë Database initialization complete!

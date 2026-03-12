@@ -1,0 +1,11 @@
+CREATE TABLE `child_health` (
+  `child_id` int NOT NULL,
+  `blood_type` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `allergies` text COLLATE utf8mb4_general_ci,
+  `medications` text COLLATE utf8mb4_general_ci,
+  `health_notes` text COLLATE utf8mb4_general_ci,
+  `medical_conditions` text COLLATE utf8mb4_general_ci,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`child_id`),
+  CONSTRAINT `child_health_ibfk_1` FOREIGN KEY (`child_id`) REFERENCES `children` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci

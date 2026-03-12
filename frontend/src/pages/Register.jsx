@@ -68,8 +68,8 @@ function Register() {
       localStorage.setItem("user", JSON.stringify(data.user));
 
       // Redirect to parent dashboard
-      navigate("/parent-dashboard");
-    } catch (e) {
+      navigate("/parent");
+    } catch {
       setError("Server not running or connection error");
       setIsSubmitting(false);
     }

@@ -1,206 +1,329 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import "./AdminDashboard.css";
+import { Icons } from "../components/Icons";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const [counts, setCounts] = React.useState({ totalChildren: 0, totalTeachers: 0, totalClasses: 0 });
+  const [years, setYears] = React.useState([]);
+  const [selectedYear, setSelectedYear] = React.useState("");
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/login");
-  };
+  React.useEffect(() => {
+    const fetchYears = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch("http://localhost:5000/api/admin/academic-years", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        setYears(data);
+        const current = data.find(y => y.is_active) || data[0];
+        if (current) setSelectedYear(current.id);
+      } catch (err) { console.error(err); }
+    };
+    fetchYears();
+  }, []);
+
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      if (!selectedYear) return;
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`http://localhost:5000/api/admin/stats?yearId=${selectedYear}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        setCounts(data);
+      } catch (err) {
+        console.error("Failed to fetch dashboard stats", err);
+      }
+    };
+    fetchStats();
+  }, [selectedYear]);
+
+  // Mock Data for Dashboard
+  const stats = [
+    { title: "Total Children", value: counts.totalChildren, icon: Icons.child, color: "#0ea5e9", bg: "#e0f2fe" },
+    { title: "Total Teachers", value: counts.totalTeachers, icon: Icons.teacher, color: "#0f766e", bg: "#ccfbf1" },
+    { title: "Classes", value: counts.totalClasses, icon: Icons.class, color: "#6366f1", bg: "#e0e7ff" },
+  ];
+
+  const recentActivities = [
+    { id: 1, text: "New child 'Shanaya Perera' registered", time: "2 mins ago", type: "child" },
+    { id: 2, text: "Payment received from Priya Perera", time: "1 hour ago", type: "payment" },
+    { id: 3, text: "Teacher 'Ms. Clara' added attendance", time: "3 hours ago", type: "attendance" },
+    { id: 4, text: "System maintenance scheduled", time: "1 day ago", type: "system" },
+  ];
+
+  const upcomingEvents = [
+    { id: 1, title: "Annual Sports Day", date: "2024-03-15", time: "09:00 AM", emoji: "🏆" },
+    { id: 2, title: "Parents Meeting", date: "2024-02-10", time: "10:00 AM", emoji: "👨‍👩‍👧‍👦" },
+    { id: 3, title: "Art Exhibition", date: "2024-01-25", time: "11:00 AM", emoji: "🎨" },
+  ];
 
   return (
-    <div className="ad-container">
-      {/* Sidebar */}
-      <aside className="ad-sidebar">
-        <h2 className="ad-logo">ILA KIDS CAMPUS</h2>
-
-        <nav className="ad-menu">
-          <button className="ad-menu-item active">
-            <span className="icon">{Icons.dashboard}</span>
-            Dashboard
-          </button>
-
-          <button
-            className="ad-menu-item"
-            onClick={() => navigate("/admin/children")}
+    <div>
+      <header className="ad-header">
+        <div>
+          <h1>Dashboard Overview</h1>
+          <p className="ad-header-subtitle">Welcome back, Administrator</p>
+        </div>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <select
+            className="ad-select"
+            style={{ width: 'auto', fontWeight: 600 }}
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
           >
-            <span className="icon">{Icons.child}</span>
-            Child Management
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.parents}</span>
-            Parent Management
-          </button>
-
-          <button
-            className="ad-menu-item"
-            onClick={() => navigate("/admin/teachers")}
-          >
-            <span className="icon">{Icons.teacher}</span>
-            Teacher Management
-          </button>
-
-
-          <button
-            className="ad-menu-item"
-            onClick={() => navigate("/admin/classes")}
-          >
-            <span className="icon">{Icons.class}</span>
-            Class Allocation
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.attendance}</span>
-            Attendance
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.payment}</span>
-            Payments
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.reports}</span>
-            Reports
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.bell}</span>
-            Notifications
-          </button>
-
-          <button className="ad-menu-item">
-            <span className="icon">{Icons.events}</span>
-            Events
-          </button>
-        </nav>
-
-        <button className="ad-logout" onClick={handleLogout}>
-          <span className="icon">{Icons.logout}</span>
-          Logout
-        </button>
-      </aside>
-
-      {/* Main Content */}
-      <main className="ad-main">
-        <header className="ad-header">
-          <h1>Admin Dashboard</h1>
+            {years.map(y => (
+              <option key={y.id} value={y.id}>{y.year_name} {y.is_active ? '(Current)' : ''}</option>
+            ))}
+          </select>
           <div className="notification">{Icons.bell}</div>
-        </header>
+        </div>
+      </header>
 
-        {/* Stats Cards */}
-        <section className="ad-cards">
-          <div className="ad-card">
-            <span className="icon big">{Icons.child}</span>
-            <h3>Total Children</h3>
-            <p>150</p>
+      {/* STATS GRID */}
+      <div className="ad-cards">
+        {stats.map((stat, index) => (
+          <div
+            key={index}
+            className="ad-card"
+            style={{ display: 'flex', alignItems: 'center', gap: '20px', cursor: 'pointer' }}
+            onClick={() => {
+              if (stat.title === "Total Children") navigate('/admin/children');
+              if (stat.title === "Total Teachers") navigate('/admin/teachers');
+              if (stat.title === "Classes") navigate('/admin/classes');
+            }}
+          >
+            <div style={{
+              width: '60px', height: '60px', borderRadius: '50%',
+              backgroundColor: stat.bg, color: stat.color,
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <div className="icon big">{stat.icon}</div>
+            </div>
+            <div>
+              <h3 style={{ fontSize: '14px', color: '#64748b', fontWeight: 500, margin: '0 0 4px 0' }}>{stat.title}</h3>
+              <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>{stat.value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '24px', marginTop: '32px' }}>
+
+        {/* LEFT COLUMN: ATTENDANCE CHART */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+          {/* Income Overview (Simple Visualization) */}
+          <div className="ad-card" style={{ height: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', color: 'var(--ad-text-primary)' }}>Monthly Attendance</h3>
+              <select className="ad-select" style={{ width: 'auto', padding: '6px 12px' }}>
+                <option>This Month</option>
+                <option>Last Month</option>
+              </select>
+            </div>
+
+            {/* Refined Bar Chart */}
+            <div style={{ position: 'relative', height: '320px', width: '100%', marginTop: '40px' }}>
+              {/* Y-Axis Labels & Grid Lines */}
+              {[100, 75, 50, 25, 0].map((level) => (
+                <div key={level} style={{
+                  position: 'absolute',
+                  top: `${100 - level}%`,
+                  left: 0,
+                  right: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  height: '0'
+                }}>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', width: '30px', textAlign: 'right', marginRight: '10px', transform: 'translateY(-1px)' }}>{level}%</span>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: level === 0 ? '#cbd5e1' : '#f1f5f9' }}></div>
+                </div>
+              ))}
+
+              {/* Bars Container */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: '40px',
+                right: 0,
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'space-between',
+                paddingRight: '10px'
+              }}>
+                {(counts.attendanceStats && counts.attendanceStats.length > 0
+                  ? counts.attendanceStats
+                  : [
+                    { percentage: 65, day: 'Mon' },
+                    { percentage: 80, day: 'Tue' },
+                    { percentage: 55, day: 'Wed' },
+                    { percentage: 90, day: 'Thu' },
+                    { percentage: 75, day: 'Fri' },
+                    { percentage: 60, day: 'Sat' },
+                    { percentage: 85, day: 'Sun' }
+                  ]
+                ).map((record, i) => {
+                  const h = Math.max(record.percentage || 0, 2); // Show at least a sliver
+                  const dayName = record.day || (record.date ? new Date(record.date).toLocaleDateString('en-US', { weekday: 'short' }) : '');
+                  const isToday = dayName === new Date().toLocaleDateString('en-US', { weekday: 'short' });
+
+                  return (
+                    <div key={i} style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      flex: 1,
+                      height: '100%',
+                      justifyContent: 'flex-end',
+                      position: 'relative'
+                    }}>
+                      <div
+                        title={`${h}% Attendance`}
+                        style={{
+                          width: '60%', // Adjust bar width relative to column
+                          maxWidth: '40px',
+                          borderRadius: '6px 6px 2px 2px',
+                          backgroundColor: isToday ? 'var(--ad-accent)' : '#94a3b8',
+                          height: `${h}%`,
+                          opacity: 0.85,
+                          transition: 'height 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                          boxShadow: isToday ? '0 4px 12px rgba(15, 118, 110, 0.3)' : '0 2px 4px rgba(0,0,0,0.05)',
+                          cursor: 'pointer',
+                          marginBottom: '30px' // Space for label
+                        }}
+                        onMouseOver={e => e.currentTarget.style.opacity = '1'}
+                        onMouseOut={e => e.currentTarget.style.opacity = '0.85'}
+                      ></div>
+                      <span style={{
+                        position: 'absolute',
+                        bottom: '0',
+                        fontSize: '11px',
+                        fontWeight: isToday ? 700 : 500,
+                        color: isToday ? 'var(--ad-accent)' : '#64748b',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {dayName}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+
+
           </div>
 
-          <div className="ad-card">
-            <span className="icon big">{Icons.teacher}</span>
-            <h3>Total Teachers</h3>
-            <p>15</p>
+        </div>
+
+        {/* MIDDLE COLUMN: QUICK ACTIONS */}
+        <div className="ad-card">
+          <h3 style={{ fontSize: '18px', marginBottom: '20px', color: 'var(--ad-text-primary)' }}>Quick Actions</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+            <button
+              className="ad-card"
+              onClick={() => navigate('/admin/parents')}
+              style={{
+                padding: '12px', display: 'flex', alignItems: 'center', gap: '12px',
+                backgroundColor: '#f8fafc', border: '1px solid #f1f5f9', cursor: 'pointer', textAlign: 'left'
+              }}
+            >
+              <div style={{ backgroundColor: '#fff7ed', padding: '8px', borderRadius: '8px' }}>👨‍👩‍👧‍👦</div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>Enrollment Approvals</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Review pending parent requests</div>
+              </div>
+            </button>
+            <button
+              className="ad-card"
+              onClick={() => navigate('/admin/classes')}
+              style={{
+                padding: '12px', display: 'flex', alignItems: 'center', gap: '12px',
+                backgroundColor: '#f8fafc', border: '1px solid #f1f5f9', cursor: 'pointer', textAlign: 'left'
+              }}
+            >
+              <div style={{ backgroundColor: '#f0fdf4', padding: '8px', borderRadius: '8px' }}>🏫</div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>Class Allocation</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Assign children to classes</div>
+              </div>
+            </button>
+            <button
+              className="ad-card"
+              onClick={() => navigate('/admin/academic-years')}
+              style={{
+                padding: '12px', display: 'flex', alignItems: 'center', gap: '12px',
+                backgroundColor: '#f8fafc', border: '1px solid #f1f5f9', cursor: 'pointer', textAlign: 'left'
+              }}
+            >
+              <div style={{ backgroundColor: '#eff6ff', padding: '8px', borderRadius: '8px' }}>📅</div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>Academic Sessions</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Manage years and terms</div>
+              </div>
+            </button>
           </div>
 
-          <div className="ad-card">
-            <span className="icon big">{Icons.payment}</span>
-            <h3>Outstanding Payments</h3>
-            <p>Rs. 150,000</p>
+          <h3 style={{ fontSize: '18px', margin: '24px 0 20px 0', color: 'var(--ad-text-primary)' }}>Upcoming Events</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {upcomingEvents.map(event => (
+              <div key={event.id} style={{ display: 'flex', gap: '12px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9', marginBottom: '8px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#fff7ed',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
+                }}>
+                  {event.emoji}
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 500, color: '#334155' }}>{event.title}</p>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>{event.date} • {event.time}</span>
+                </div>
+              </div>
+            ))}
+            <button
+              style={{ background: 'none', border: 'none', color: 'var(--ad-accent)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginTop: '8px', textAlign: 'left' }}
+              onClick={() => navigate('/admin/events')}
+            >
+              View All Events →
+            </button>
           </div>
+        </div>
 
-          <div className="ad-card">
-            <span className="icon big">{Icons.events}</span>
-            <h3>Events</h3>
-            <p>5</p>
+        {/* RIGHT COLUMN: RECENT ACTIVITY */}
+        <div className="ad-card">
+          <h3 style={{ fontSize: '18px', marginBottom: '20px', color: 'var(--ad-text-primary)' }}>Recent Activity</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {recentActivities.map(activity => (
+              <div key={activity.id} style={{ display: 'flex', gap: '12px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9', marginBottom: '8px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#f8fafc',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
+                }}>
+                  {activity.type === 'child' ? '👶' : activity.type === 'payment' ? '💰' : activity.type === 'system' ? '⚙️' : '📝'}
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 500, color: '#334155' }}>{activity.text}</p>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>{activity.time}</span>
+                </div>
+              </div>
+            ))}
+            <button
+              style={{ background: 'none', border: 'none', color: 'var(--ad-accent)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginTop: '8px', textAlign: 'left' }}
+              onClick={() => navigate('/admin/notifications')}
+            >
+              View All Activity →
+            </button>
           </div>
-        </section>
+        </div>
 
-        {/* Activities */}
-        <section className="ad-activity">
-          <h2>Recent Activities</h2>
-          <ul>
-            <li>✔ New child registered</li>
-            <li>✔ Parent payment received</li>
-            <li>✔ Attendance updated</li>
-            <li>✔ Event updated</li>
-          </ul>
-        </section>
-      </main>
-    </div>
+      </div>
+    </div >
   );
-};
-
-/* ---------------- ICONS ---------------- */
-
-const Icons = {
-  dashboard: (
-    <svg viewBox="0 0 24 24">
-      <path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-18v6h8V3h-8z" />
-    </svg>
-  ),
-  child: (
-    <svg viewBox="0 0 24 24">
-      <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4z" />
-      <path d="M12 14c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z" />
-    </svg>
-  ),
-  parents: (
-    <svg viewBox="0 0 24 24">
-      <path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4z" />
-      <path d="M8 12a3.5 3.5 0 1 0-3.5-3.5A3.5 3.5 0 0 0 8 12z" />
-      <path d="M16 13c-3.3 0-6 1.8-6 4v3h12v-3c0-2.2-2.7-4-6-4z" />
-    </svg>
-  ),
-  teacher: (
-    <svg viewBox="0 0 24 24">
-      <path d="M12 3L2 9l10 6 10-6-10-6z" />
-      <path d="M4 13v4l8 4 8-4v-4l-8 4-8-4z" />
-    </svg>
-  ),
-  class: (
-    <svg viewBox="0 0 24 24">
-      <path d="M3 4h18v2H3zM3 8h18v12H3z" />
-    </svg>
-  ),
-  attendance: (
-    <svg viewBox="0 0 24 24">
-      <path d="M7 2h2v2h6V2h2v2h3v18H4V4h3V2z" />
-      <path d="M6 8h12v12H6z" />
-    </svg>
-  ),
-  payment: (
-    <svg viewBox="0 0 24 24">
-      <path d="M3 5h18v14H3z" />
-      <path d="M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6z" />
-    </svg>
-  ),
-  reports: (
-    <svg viewBox="0 0 24 24">
-      <path d="M3 3h18v18H3z" />
-      <path d="M7 13h2v4H7zm4-6h2v10h-2zm4 3h2v7h-2z" />
-    </svg>
-  ),
-  events: (
-    <svg viewBox="0 0 24 24">
-      <path d="M7 2h2v2h6V2h2v2h3v18H4V4h3V2z" />
-    </svg>
-  ),
-  bell: (
-    <svg viewBox="0 0 24 24">
-      <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2z" />
-      <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2v1h16v-1z" />
-    </svg>
-  ),
-  logout: (
-    <svg viewBox="0 0 24 24">
-      <path d="M10 17l4-4-4-4v3H3v2h7z" />
-      <path d="M14 3h7v18h-7v-2h5V5h-5z" />
-    </svg>
-  ),
 };
 
 export default AdminDashboard;
