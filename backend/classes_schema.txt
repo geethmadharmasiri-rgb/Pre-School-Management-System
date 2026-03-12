@@ -1,0 +1,13 @@
+CREATE TABLE `classes` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
+  `capacity` int DEFAULT '25',
+  `teacher_id` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `academic_year_id` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `teacher_id` (`teacher_id`),
+  KEY `fk_classes_academic_year` (`academic_year_id`),
+  CONSTRAINT `classes_ibfk_1` FOREIGN KEY (`teacher_id`) REFERENCES `teachers` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_classes_academic_year` FOREIGN KEY (`academic_year_id`) REFERENCES `academic_years` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci

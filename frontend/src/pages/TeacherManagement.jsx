@@ -62,23 +62,55 @@ export default function TeacherManagement() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (editingId) {
-      setTeachers(
-        teachers.map((t) =>
-          t.id === editingId ? { ...formData, id: editingId } : t
-        )
-      );
-    } else {
-      setTeachers([...teachers, { ...formData, id: Date.now() }]);
+    try {
+      const token = localStorage.getItem("token");
+      if (editingId) {
+        const res = await fetch(`http://localhost:5000/api/admin/teachers/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(formData)
+        });
+        if (res.ok) {
+          alert("Teacher updated successfully!");
+          fetchTeachers(); // Refresh list
+          handleCloseForm();
+        } else {
+          const data = await res.json();
+          alert(data.message || "Failed to update teacher");
+        }
+      } else {
+        // Redir to new teacher page if this was accidentally used for adding (sidebar handles new adds usually)
+        navigate("/admin/teachers/new");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Server error");
     }
-    handleCloseForm();
   };
 
-  const handleDelete = (id) => {
-    if (!window.confirm("Delete this teacher?")) return;
-    setTeachers((prev) => prev.filter((t) => t.id !== id));
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this teacher? This will also remove their user account and unassign them from any classes.")) return;
+    
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/admin/teachers/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        alert("Teacher deleted successfully!");
+        setTeachers((prev) => prev.filter((t) => t.id !== id));
+      } else {
+        alert(data.message || "Failed to delete teacher");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Connectivity error");
+    }
   };
 
   return (

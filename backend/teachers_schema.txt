@@ -1,0 +1,16 @@
+CREATE TABLE `teachers` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `emp_id` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `qualification` text COLLATE utf8mb4_general_ci,
+  `experience` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `contact` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `address` text COLLATE utf8mb4_general_ci,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `nic` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `emp_id` (`emp_id`),
+  UNIQUE KEY `nic` (`nic`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `teachers_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci

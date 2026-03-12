@@ -125,38 +125,59 @@ export default function ClassAllocation() {
     } catch (err) { console.error(err); }
   };
 
-  const handleToggleChild = async (childId, isCurrentlyAssigned) => {
+  // Updated: Allow removing a child from ANY class, not just the selected one
+  const handleToggleChild = async (childId, targetClassId) => {
     try {
       const token = localStorage.getItem("token");
-      const newClassId = isCurrentlyAssigned ? null : selectedClassId;
-      console.log(`DEBUG: Assigning child ${childId} to class ${newClassId}`);
+      console.log(`DEBUG: Target class for child ${childId} is ${targetClassId}`);
 
       const res = await fetch(`http://localhost:5000/api/admin/children/${childId}/assign-class`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ classId: newClassId }),
+        body: JSON.stringify({ classId: targetClassId }),
       });
 
       if (res.ok) {
-        fetchData();
+        // Success - force refresh
+        await fetchData();
       } else {
         const err = await res.json();
-        alert(`Error: ${err.message || 'Failed to assign child'}`);
+        alert(`Error: ${err.message || "Failed to update assignment"}`);
       }
     } catch (err) {
       console.error(err);
-      alert("Connectivity error while assigning child");
+      alert("Connectivity error while updating assignment");
     }
   };
 
-  // Filter logic for right column
+  // Filter and Sort logic for right column
   const childList = children.filter(ch => {
     const matchesSearch = `${ch.first_name} ${ch.last_name} ${ch.id}`.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
 
+    // Use loose equality == to handle string vs number IDs
     if (filterType === 'unassigned') return !ch.class_id;
-    if (filterType === 'assigned') return ch.class_id === selectedClassId;
+    // Updated: 'assigned' now shows both class members AND unassigned children for easy allocation
+    if (filterType === 'assigned') return ch.class_id == selectedClassId || !ch.class_id;
     return true; // 'all'
+  }).sort((a, b) => {
+    // 1. Group by Class ID (Selection first, then others, then Unassigned at bottom for 'all')
+    const aClass = a.class_id || Infinity;
+    const bClass = b.class_id || Infinity;
+
+    if (filterType === 'all') {
+      // For 'all' view, group by class name alphabetically
+      const aName = a.className || 'ZZZ';
+      const bName = b.className || 'ZZZ';
+      if (aName !== bName) return aName.localeCompare(bName);
+    } else {
+      // For specific views, keep selected class at top
+      if (a.class_id == selectedClassId && b.class_id != selectedClassId) return -1;
+      if (a.class_id != selectedClassId && b.class_id == selectedClassId) return 1;
+    }
+
+    // Secondary sort by name
+    return a.first_name.localeCompare(b.first_name);
   });
 
   if (loading && !years.length) return <div className="loading">Loading...</div>;
@@ -281,9 +302,9 @@ export default function ClassAllocation() {
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <span style={{ fontSize: '14px', color: '#64748b' }}>Show:</span>
               <select className="ad-select" style={{ width: 'auto', padding: '6px 12px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
-                <option value="unassigned">Unassigned Children</option>
-                <option value="assigned">Currently in {selectedClass?.name || '---'}</option>
-                <option value="all">All Children</option>
+                <option value="assigned">Members + Unassigned</option>
+                <option value="unassigned">Only Unassigned</option>
+                <option value="all">All Registered (Class-wise)</option>
               </select>
             </div>
           </div>
@@ -311,37 +332,65 @@ export default function ClassAllocation() {
                 </tr>
               </thead>
               <tbody>
-                {childList.map(ch => {
+                {childList.map((ch, index) => {
                   const isAssignedToThis = ch.class_id === selectedClassId;
-                  const isAssignedElse = ch.class_id && ch.class_id !== selectedClassId;
+                  
+                  // GROUPING LOGIC for "All Children" view
+                  const prevCh = index > 0 ? childList[index - 1] : null;
+                  const showHeader = filterType === 'all' && (!prevCh || prevCh.className !== ch.className);
 
                   return (
-                    <tr key={ch.id}>
-                      <td><span style={{ fontFamily: 'monospace', fontWeight: 600 }}>CH-{String(ch.id).padStart(3, '0')}</span></td>
-                      <td style={{ fontWeight: 500 }}>{ch.first_name} {ch.last_name}</td>
-                      <td>
-                        {ch.className ? (
-                          <span className={`status-badge active`}>{ch.className}</span>
-                        ) : (
-                          <span className={`status-badge pending`}>Unassigned</span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {isAssignedToThis ? (
-                          <button onClick={() => handleToggleChild(ch.id, true)} className="action-btn delete" style={{ padding: '6px 12px' }}>Remove</button>
-                        ) : (
-                          <button
-                            onClick={() => handleToggleChild(ch.id, false)}
-                            className="action-btn approve"
-                            disabled={!selectedClass}
-                            title={!selectedClass ? "Select a class first" : (isAssignedElse ? "Already in another class" : "Assign to this class")}
-                            style={{ padding: '6px 12px', opacity: isAssignedElse || !selectedClass ? 0.5 : 1 }}
-                          >
-                            Assign to {selectedClass?.name || 'Class'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+                    <React.Fragment key={ch.id}>
+                      {showHeader && (
+                        <tr style={{ backgroundColor: '#f1f5f9' }}>
+                          <td colSpan="4" style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {ch.className ? `📁 ${ch.className}` : '⚪ Unassigned Children'}
+                          </td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td><span style={{ fontFamily: 'monospace', fontWeight: 600 }}>CH-{String(ch.id).padStart(3, '0')}</span></td>
+                        <td style={{ fontWeight: 500 }}>{ch.first_name} {ch.last_name}</td>
+                        <td>
+                          {ch.className ? (
+                            <span className={`status-badge active`}>{ch.className}</span>
+                          ) : (
+                            <span className={`status-badge pending`}>Unassigned</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            {/* 1. REMOVE BUTTON (Shows if they have ANY class) */}
+                            {ch.class_id && (
+                              <button
+                                onClick={() => handleToggleChild(ch.id, null)}
+                                className="action-btn delete"
+                                style={{ padding: '6px 12px', fontSize: '11px' }}
+                              >
+                                Remove from {ch.className}
+                              </button>
+                            )}
+
+                            {/* 2. ASSIGN/MOVE BUTTON (Shows if not in currently selected class) */}
+                            {(!ch.class_id || ch.class_id != selectedClassId) && (
+                              <button
+                                onClick={() => handleToggleChild(ch.id, selectedClassId)}
+                                className="action-btn approve"
+                                disabled={!selectedClass}
+                                style={{ 
+                                  padding: '6px 12px', 
+                                  fontSize: '11px',
+                                  backgroundColor: ch.class_id ? '#6366f1' : 'var(--ad-accent)', // Use Indigo for 'Move' and Accent for 'Assign'
+                                  opacity: !selectedClass ? 0.5 : 1 
+                                }}
+                              >
+                                {ch.class_id ? `Move to ${selectedClass?.name || 'Class'}` : `Assign to ${selectedClass?.name || 'Class'}`}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    </React.Fragment>
                   )
                 })}
                 {childList.length === 0 && (

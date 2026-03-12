@@ -1477,10 +1477,10 @@ app.put("/api/children/:id/profile", authRequired, upload.single("profilePicture
 ========================= */
 app.get("/api/admin/teachers", authRequired, async (req, res) => {
   try {
-    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    if (req.user.role !== "ADMIN" && req.user.role !== "TEACHER") return res.status(403).json({ message: "Access denied" });
     const [rows] = await db.query(`
       SELECT 
-        t.id, t.user_id, t.emp_id, t.nic, t.qualification, t.experience, t.contact, t.address,
+        t.id, t.user_id, t.emp_id as empId, t.nic, t.qualification, t.experience, t.contact, t.address,
         u.name, u.email, 
         cl.name as assignedClass
       FROM teachers t
@@ -1545,6 +1545,65 @@ app.post("/api/admin/teachers", authRequired, async (req, res) => {
     await connection.rollback();
     console.error("Error during teacher registration:", err);
     res.status(500).json({ message: "Server error", error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+app.delete("/api/admin/teachers/:id", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+
+    const teacherId = req.params.id;
+
+    // 1. Get user_id associated with the teacher
+    const [teacherRows] = await db.query("SELECT user_id FROM teachers WHERE id = ?", [teacherId]);
+    if (!teacherRows.length) return res.status(404).json({ message: "Teacher not found" });
+    const userId = teacherRows[0].user_id;
+
+    // 2. Delete the user (this will cascade delete the teacher profile)
+    await db.query("DELETE FROM users WHERE id = ?", [userId]);
+
+    res.json({ message: "Teacher deleted successfully" });
+  } catch (err) {
+    console.error("Delete Teacher Error:", err);
+    res.status(500).json({ message: "Delete failed", error: err.message });
+  }
+});
+
+app.put("/api/admin/teachers/:id", authRequired, async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+
+    const teacherId = req.params.id;
+    const { name, email, empId, qualification, experience, contact, address, nic } = req.body;
+
+    // 1. Get user_id
+    const [tRows] = await db.query("SELECT user_id FROM teachers WHERE id = ?", [teacherId]);
+    if (!tRows.length) return res.status(404).json({ message: "Teacher not found" });
+    const userId = tRows[0].user_id;
+
+    await connection.beginTransaction();
+
+    // 2. Update User (Name and Email)
+    await connection.query(
+      "UPDATE users SET name = ?, email = ? WHERE id = ?",
+      [name, email, userId]
+    );
+
+    // 3. Update Teacher Profile
+    await connection.query(
+      "UPDATE teachers SET emp_id = ?, qualification = ?, experience = ?, contact = ?, address = ?, nic = ? WHERE id = ?",
+      [empId, qualification, experience, contact, address, nic, teacherId]
+    );
+
+    await connection.commit();
+    res.json({ message: "Teacher updated successfully" });
+  } catch (err) {
+    await connection.rollback();
+    console.error("Update Teacher Error:", err);
+    res.status(500).json({ message: "Update failed", error: err.message });
   } finally {
     connection.release();
   }
@@ -1914,7 +1973,7 @@ app.get("/api/admin/classes", authRequired, async (req, res) => {
 
 app.post("/api/admin/classes", authRequired, async (req, res) => {
   try {
-    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    if (req.user.role !== "ADMIN" && req.user.role !== "TEACHER") return res.status(403).json({ message: "Access denied" });
     const { name, capacity, teacherId, academicYearId } = req.body;
 
     // Default to active year if not provided
@@ -1937,7 +1996,7 @@ app.post("/api/admin/classes", authRequired, async (req, res) => {
 
 app.put("/api/admin/classes/:id", authRequired, async (req, res) => {
   try {
-    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    if (req.user.role !== "ADMIN" && req.user.role !== "TEACHER") return res.status(403).json({ message: "Access denied" });
     const { name, capacity, teacherId, academicYearId } = req.body;
     const classId = req.params.id;
     await db.query(
@@ -1953,7 +2012,7 @@ app.put("/api/admin/classes/:id", authRequired, async (req, res) => {
 
 app.delete("/api/admin/classes/:id", authRequired, async (req, res) => {
   try {
-    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    if (req.user.role !== "ADMIN" && req.user.role !== "TEACHER") return res.status(403).json({ message: "Access denied" });
     const classId = req.params.id;
 
     // Optional: unassign children first instead of cascade? 
@@ -1970,7 +2029,7 @@ app.delete("/api/admin/classes/:id", authRequired, async (req, res) => {
 
 app.put("/api/admin/children/:id/assign-class", authRequired, async (req, res) => {
   try {
-    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    if (req.user.role !== "ADMIN" && req.user.role !== "TEACHER") return res.status(403).json({ message: "Access denied" });
     const { classId } = req.body;
     const childId = req.params.id;
     console.log(`[CLASS ASSIGN] Admin ${req.user.id} assigning child ${childId} to class ${classId}`);
