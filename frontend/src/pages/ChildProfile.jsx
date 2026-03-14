@@ -235,7 +235,8 @@ export default function ChildProfile() {
             try {
                 const token = localStorage.getItem("token");
                 const res = await fetch(`http://localhost:5000/api/children/${id}/homework`, {
-                    headers: { Authorization: `Bearer ${token}` }
+                    headers: { Authorization: `Bearer ${token}` },
+                    cache: 'no-store'
                 });
                 const data = await res.json();
                 setHomework(Array.isArray(data) ? data : []);

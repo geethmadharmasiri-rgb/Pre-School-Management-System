@@ -129,6 +129,7 @@ function App() {
           <Route path="attendance" element={<TeacherAttendance />} />
           <Route path="homework" element={<TeacherHomework />} />
           <Route path="homework/new" element={<TeacherAddHomework />} />
+          <Route path="homework/edit/:id" element={<TeacherAddHomework />} />
           <Route path="behavior-reports" element={<TeacherBehaviorReports />} />
           <Route path="meal-planning" element={<TeacherMealPlanning />} />
           <Route path="health-info" element={<TeacherHealthInfo />} />

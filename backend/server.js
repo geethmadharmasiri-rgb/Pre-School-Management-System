@@ -157,7 +157,7 @@ app.get("/test-db", async (req, res) => {
 /* =========================
    AUTH MIDDLEWARE
 ========================= */
-function authRequired(req, res, next) {
+async function authRequired(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
@@ -165,8 +165,19 @@ function authRequired(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("AUTH DEBUG: Decoded Role:", decoded.role, "ID:", decoded.id);
     req.user = decoded; // { id, role, email, name }
+
+    // Backward compatibility for old tokens missing role
+    if (!req.user.role && req.user.id) {
+        try {
+            const [rows] = await db.query("SELECT role FROM users WHERE id = ?", [req.user.id]);
+            if (rows.length > 0) req.user.role = rows[0].role;
+        } catch (dbErr) {
+            console.error("Auth DB fetch role error:", dbErr);
+        }
+    }
+    
+    console.log("AUTH DEBUG: Decoded Role:", req.user.role, "ID:", req.user.id);
     next();
   } catch (e) {
     return res.status(401).json({ message: "Invalid/expired token" });
@@ -1113,8 +1124,9 @@ app.get("/api/children", authRequired, async (req, res) => {
     let query = "";
     let params = [];
 
+    const userRole = (req.user.role || "").toUpperCase();
     // 1. ADMIN - Management View (All inclusive)
-    if (req.user.role === "ADMIN" && scope !== 'my') {
+    if (userRole === "ADMIN" && scope !== 'my') {
       query = `
         SELECT c.*, cl.name as className, 
                GROUP_CONCAT(u.name SEPARATOR ', ') as parentName, 
@@ -1131,7 +1143,7 @@ app.get("/api/children", authRequired, async (req, res) => {
       `;
     } 
     // 2. TEACHER - Class View
-    else if (req.user.role === "TEACHER" && scope !== 'my') {
+    else if (userRole === "TEACHER" && scope !== 'my') {
       // Find teacher's assigned class for the specific year
       const [teacherRows] = await db.query(
         "SELECT id FROM teachers WHERE user_id = ? LIMIT 1",
@@ -1205,7 +1217,7 @@ app.get("/api/children", authRequired, async (req, res) => {
 ========================= */
 app.get("/api/teacher/profile", authRequired, async (req, res) => {
   try {
-    if (req.user.role !== "TEACHER") {
+    if ((req.user.role || "").toUpperCase() !== "TEACHER") {
       return res.status(403).json({ message: "Teacher access required" });
     }
     const { yearId } = req.query;
@@ -1615,7 +1627,7 @@ app.put("/api/admin/teachers/:id", authRequired, async (req, res) => {
 ========================= */
 app.get("/api/homework", authRequired, async (req, res) => {
   try {
-    if (req.user.role !== "TEACHER") return res.status(403).json({ message: "Teacher access only" });
+    if ((req.user.role || "").toUpperCase() !== "TEACHER") return res.status(403).json({ message: "Teacher access only" });
     const { yearId } = req.query;
 
     let query = `
@@ -1646,9 +1658,9 @@ app.get("/api/homework", authRequired, async (req, res) => {
 
 app.post("/api/homework", authRequired, upload.single("homeworkFile"), async (req, res) => {
   try {
-    if (req.user.role !== "TEACHER") return res.status(403).json({ message: "Teacher access only" });
+    if ((req.user.role || "").toUpperCase() !== "TEACHER") return res.status(403).json({ message: "Teacher access only" });
     const { title, description, due_date, yearId } = req.body;
-    const filePath = req.file ? req.file.path : null;
+    const filePath = req.file ? req.file.path.replace(/\\/g, '/') : null;
 
     const [tRows] = await db.query("SELECT id FROM teachers WHERE user_id = ?", [req.user.id]);
     if (!tRows.length) return res.status(404).json({ message: "Teacher profile not found" });
@@ -1691,6 +1703,110 @@ app.post("/api/homework", authRequired, upload.single("homeworkFile"), async (re
   }
 });
 
+app.put("/api/homework/:id", authRequired, upload.single("homeworkFile"), async (req, res) => {
+  try {
+    if ((req.user.role || "").toUpperCase() !== "TEACHER") return res.status(403).json({ message: "Teacher access only" });
+    const { id } = req.params;
+    const { title, description, due_date } = req.body;
+    let filePath = req.file ? req.file.path.replace(/\\/g, '/') : null;
+
+    // Verify ownership (optional but good practice)
+    const [hRows] = await db.query(`
+      SELECT h.* FROM homework h 
+      JOIN classes c ON h.class_id = c.id 
+      JOIN teachers t ON c.teacher_id = t.id 
+      WHERE h.id = ? AND t.user_id = ?
+    `, [id, req.user.id]);
+
+    if (!hRows.length) return res.status(404).json({ message: "Homework not found or unauthorized" });
+
+    if (!filePath) filePath = hRows[0].file_path; // Keep old file if no new one
+
+    await db.query(
+      "UPDATE homework SET title = ?, description = ?, due_date = ?, file_path = ? WHERE id = ?",
+      [title, description, due_date, filePath, id]
+    );
+
+    res.json({ message: "Homework updated successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.delete("/api/homework/:id", authRequired, async (req, res) => {
+  try {
+    const userRole = (req.user.role || "").toUpperCase();
+    if (userRole !== "TEACHER") {
+      console.error(`[DELETE DENIED] User: ${req.user.id}, Role: ${req.user.role}`);
+      return res.status(403).json({ 
+        message: "Teacher access only",
+        debugRole: req.user.role,
+        debugId: req.user.id 
+      });
+    }
+    const { id } = req.params;
+    console.log(`[DELETE HOMEWORK] Attempting to delete ID: ${id} by Teacher User ID: ${req.user.id}`);
+
+    // Verify ownership
+    const [hRows] = await db.query(`
+      SELECT h.* FROM homework h 
+      JOIN classes c ON h.class_id = c.id 
+      JOIN teachers t ON c.teacher_id = t.id 
+      WHERE h.id = ? AND t.user_id = ?
+    `, [id, req.user.id]);
+
+    if (!hRows.length) {
+      console.warn(`[DELETE HOMEWORK] Homework ${id} not found or unauthorized for user ${req.user.id}`);
+      return res.status(404).json({ message: "Homework not found or unauthorized" });
+    }
+
+    const homework = hRows[0];
+    
+    // Optional: Delete physical file if it exists
+    if (homework.file_path) {
+      const fullPath = path.join(__dirname, homework.file_path);
+      if (fs.existsSync(fullPath)) {
+        try {
+          fs.unlinkSync(fullPath);
+          console.log(`[DELETE HOMEWORK] Deleted file: ${fullPath}`);
+        } catch (fErr) {
+          console.error(`[DELETE HOMEWORK] Failed to delete file: ${fErr.message}`);
+        }
+      }
+    }
+
+    const [result] = await db.query("DELETE FROM homework WHERE id = ?", [id]);
+    console.log(`[DELETE HOMEWORK] Successfully deleted ID: ${id}. Rows affected: ${result.affectedRows}`);
+    
+    res.json({ message: "Homework deleted successfully", id });
+  } catch (err) {
+    console.error(`[DELETE HOMEWORK] ERROR:`, err);
+    res.status(500).json({ message: "Server error during deletion", details: err.message });
+  }
+});
+
+app.get("/api/homework/:id", authRequired, async (req, res) => {
+  try {
+    if ((req.user.role || "").toUpperCase() !== "TEACHER") return res.status(403).json({ message: "Teacher access only" });
+    const { id } = req.params;
+
+    const [rows] = await db.query(`
+      SELECT h.* FROM homework h 
+      JOIN classes c ON h.class_id = c.id 
+      JOIN teachers t ON c.teacher_id = t.id 
+      WHERE h.id = ? AND t.user_id = ?
+    `, [id, req.user.id]);
+
+    if (!rows.length) return res.status(404).json({ message: "Homework not found" });
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 /* =========================
    BEHAVIOR API
 ========================= */
@@ -1700,7 +1816,8 @@ app.get("/api/behavior-reports", authRequired, async (req, res) => {
     let query = "";
     let params = [];
 
-    if (req.user.role === "TEACHER") {
+    const userRole = (req.user.role || "").toUpperCase();
+    if (userRole === "TEACHER") {
       query = `
         SELECT b.*, c.first_name, c.last_name, cl.name as className, u_t.name as teacherName
         FROM behavior_reports b
@@ -1715,7 +1832,7 @@ app.get("/api/behavior-reports", authRequired, async (req, res) => {
         query += " AND cl.academic_year_id = ? ";
         params.push(yearId);
       }
-    } else if (req.user.role === "PARENT") {
+    } else if (userRole === "PARENT") {
       // Find parent's children first
       const [parentRows] = await db.query("SELECT id FROM parents WHERE user_id = ?", [req.user.id]);
       if (!parentRows.length) return res.json([]);
@@ -1736,7 +1853,7 @@ app.get("/api/behavior-reports", authRequired, async (req, res) => {
         query += " AND b.child_id = ? ";
         params.push(childId);
       }
-    } else if (req.user.role === "ADMIN") {
+    } else if (userRole === "ADMIN") {
       query = `
           SELECT b.*, c.first_name, c.last_name, u_t.name as teacherName
           FROM behavior_reports b
@@ -1745,7 +1862,7 @@ app.get("/api/behavior-reports", authRequired, async (req, res) => {
           JOIN users u_t ON t.user_id = u_t.id
         `;
     } else {
-      return res.status(403).json({ message: "Forbidden" });
+      return res.status(403).json({ message: `Forbidden (Role: ${req.user.role})` });
     }
 
     query += " ORDER BY b.date DESC";
@@ -1760,10 +1877,11 @@ app.get("/api/behavior-reports", authRequired, async (req, res) => {
 app.post("/api/behavior-reports", authRequired, async (req, res) => {
   try {
     const userRole = (req.user.role || "").toUpperCase();
-    console.log("DEBUG /api/behavior-reports POST role:", userRole, "id:", req.user.id);
-
     if (userRole !== "TEACHER" && userRole !== "ADMIN") {
-      return res.status(403).json({ message: "Teacher or Admin access required" });
+      return res.status(403).json({ 
+        message: "Teacher or Admin access required",
+        debugRole: req.user.role 
+      });
     }
 
     const { child_id, rating, category, note, date } = req.body;
@@ -1793,7 +1911,21 @@ app.post("/api/behavior-reports", authRequired, async (req, res) => {
     }
 
     if (!teacherId) {
-      return res.status(404).json({ message: "No teacher found to associate with this report" });
+      return res.status(404).json({ message: "Teacher profile not found for this account" });
+    }
+
+    // Verify teacher owns this child's class
+    if (userRole === "TEACHER") {
+      const [ownerRows] = await db.query(`
+        SELECT c.id 
+        FROM children c
+        JOIN classes cl ON c.class_id = cl.id
+        WHERE c.id = ? AND cl.teacher_id = ?
+      `, [child_id, teacherId]);
+
+      if (!ownerRows.length) {
+        return res.status(403).json({ message: "Unauthorized: This child is not in your class." });
+      }
     }
 
     // Verify child exists
@@ -1808,6 +1940,86 @@ app.post("/api/behavior-reports", authRequired, async (req, res) => {
     res.json({ message: "Behavior report uploaded successfully" });
   } catch (err) {
     console.error("POST /api/behavior-reports error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.put("/api/behavior-reports/:id", authRequired, async (req, res) => {
+  try {
+    const userRole = (req.user.role || "").toUpperCase();
+    if (userRole !== "TEACHER" && userRole !== "ADMIN") {
+      return res.status(403).json({ message: "Teacher or Admin access required PUT" });
+    }
+
+    const reportId = req.params.id;
+    const { rating, category, note } = req.body;
+
+    if (userRole === "TEACHER") {
+      const [tRows] = await db.query("SELECT id FROM teachers WHERE user_id = ?", [req.user.id]);
+      if (!tRows.length) return res.status(404).json({ message: "Teacher not found" });
+
+      const [rRows] = await db.query("SELECT * FROM behavior_reports WHERE id = ?", [reportId]);
+      if (!rRows.length) return res.status(404).json({ message: "Report not found" });
+
+      const childId = rRows[0].child_id;
+      const [ownerRows] = await db.query(`
+        SELECT c.id 
+        FROM children c
+        JOIN classes cl ON c.class_id = cl.id
+        WHERE c.id = ? AND cl.teacher_id = ?
+      `, [childId, tRows[0].id]);
+
+      if (!ownerRows.length && rRows[0].teacher_id !== tRows[0].id) {
+          return res.status(403).json({ message: "Unauthorized: You do not have permission to edit this report." });
+      }
+    }
+
+    await db.query(
+      "UPDATE behavior_reports SET rating = ?, category = ?, note = ? WHERE id = ?",
+      [rating, category, note, reportId]
+    );
+
+    res.json({ message: "Report updated successfully" });
+  } catch (err) {
+    console.error("PUT /api/behavior-reports error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.delete("/api/behavior-reports/:id", authRequired, async (req, res) => {
+  try {
+    const userRole = (req.user.role || "").toUpperCase();
+    if (userRole !== "TEACHER" && userRole !== "ADMIN") {
+      return res.status(403).json({ message: "Teacher or Admin access required DELETE" });
+    }
+
+    const reportId = req.params.id;
+
+    if (userRole === "TEACHER") {
+      const [tRows] = await db.query("SELECT id FROM teachers WHERE user_id = ?", [req.user.id]);
+      if (!tRows.length) return res.status(404).json({ message: "Teacher not found" });
+
+      const [rRows] = await db.query("SELECT * FROM behavior_reports WHERE id = ?", [reportId]);
+      if (!rRows.length) return res.status(404).json({ message: "Report not found" });
+
+      const childId = rRows[0].child_id;
+      const [ownerRows] = await db.query(`
+        SELECT c.id 
+        FROM children c
+        JOIN classes cl ON c.class_id = cl.id
+        WHERE c.id = ? AND cl.teacher_id = ?
+      `, [childId, tRows[0].id]);
+
+      if (!ownerRows.length && rRows[0].teacher_id !== tRows[0].id) {
+          return res.status(403).json({ message: "Unauthorized: You do not have permission to delete this report." });
+      }
+    }
+
+    await db.query("DELETE FROM behavior_reports WHERE id = ?", [reportId]);
+
+    res.json({ message: "Report deleted successfully" });
+  } catch (err) {
+    console.error("DELETE /api/behavior-reports error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

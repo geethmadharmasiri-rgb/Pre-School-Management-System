@@ -13,6 +13,7 @@ export default function TeacherBehaviorReports() {
     const [observation, setObservation] = useState("");
     const [rating, setRating] = useState(3);
     const [category, setCategory] = useState("General");
+    const [editingId, setEditingId] = useState(null);
 
     useEffect(() => {
         if (selectedYearId) {
@@ -69,8 +70,11 @@ export default function TeacherBehaviorReports() {
 
         try {
             const token = localStorage.getItem("token");
-            const res = await fetch("http://localhost:5000/api/behavior-reports", {
-                method: "POST",
+            const url = editingId ? `http://localhost:5000/api/behavior-reports/${editingId}` : "http://localhost:5000/api/behavior-reports";
+            const method = editingId ? "PUT" : "POST";
+            
+            const res = await fetch(url, {
+                method: method,
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`
@@ -85,12 +89,13 @@ export default function TeacherBehaviorReports() {
             });
 
             if (res.ok) {
-                alert("Behavior report submitted successfully!");
+                alert(editingId ? "Behavior report updated successfully!" : "Behavior report submitted successfully!");
                 // Reset form
                 setSelectedChild("");
                 setObservation("");
                 setRating(3);
                 setCategory("General");
+                setEditingId(null);
                 // Refresh list
                 fetchReports();
             } else {
@@ -100,6 +105,34 @@ export default function TeacherBehaviorReports() {
         } catch (err) {
             console.error(err);
             alert("Failed to submit report");
+        }
+    };
+
+    const handleEdit = (report) => {
+        setEditingId(report.id);
+        setSelectedChild(report.child_id);
+        setObservation(report.note);
+        setRating(report.rating);
+        setCategory(report.category);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this report?")) return;
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`http://localhost:5000/api/behavior-reports/${id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                fetchReports();
+            } else {
+                alert("Failed to delete report");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error deleting report");
         }
     };
 
@@ -149,7 +182,7 @@ export default function TeacherBehaviorReports() {
             <div className="ad-form-card" style={{ marginBottom: '32px' }}>
                 <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{ fontSize: '24px' }}>📝</span>
-                    Create New Behavior Report
+                    {editingId ? "Edit Behavior Report" : "Create New Behavior Report"}
                 </h3>
                 <form onSubmit={handleSubmit}>
                     <div className="ad-form-row">
@@ -160,6 +193,7 @@ export default function TeacherBehaviorReports() {
                                 value={selectedChild}
                                 onChange={(e) => setSelectedChild(e.target.value)}
                                 required
+                                disabled={!!editingId}
                             >
                                 <option value="">Choose a child...</option>
                                 {children.map(child => (
@@ -209,8 +243,9 @@ export default function TeacherBehaviorReports() {
                             setObservation("");
                             setRating(3);
                             setCategory("General");
-                        }}>Clear Form</button>
-                        <button type="submit" className="btn-primary">Submit Report</button>
+                            setEditingId(null);
+                        }}>{editingId ? "Cancel Edit" : "Clear Form"}</button>
+                        <button type="submit" className="btn-primary">{editingId ? "Update Report" : "Submit Report"}</button>
                     </div>
                 </form>
             </div>
@@ -252,6 +287,22 @@ export default function TeacherBehaviorReports() {
                                             {new Date(report.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                         </div>
                                         <div style={{ fontSize: '11px', color: '#cbd5e1' }}>by {report.teacherName}</div>
+                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
+                                            <button 
+                                                onClick={() => handleEdit(report)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0ea5e9', fontSize: '16px' }}
+                                                title="Edit"
+                                            >
+                                                ✏️
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDelete(report.id)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '16px' }}
+                                                title="Delete"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 

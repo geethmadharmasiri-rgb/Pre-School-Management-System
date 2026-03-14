@@ -34,6 +34,33 @@ export default function TeacherHomework() {
         }
     };
 
+    const deleteHomework = async (id) => {
+        try {
+            console.log(`[DELETE] Starting deletion for ID: ${id}`);
+            const token = localStorage.getItem("token");
+            const response = await fetch(`http://localhost:5000/api/homework/${id}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log(`[DELETE] Successfully deleted ID: ${id}`);
+                setHomework(homework.filter(h => h.id !== id));
+            } else {
+                console.error(`[DELETE] Failed:`, data);
+                const debugInfo = data.debugRole ? ` (Your role: ${data.debugRole})` : "";
+                alert(`Failed to delete homework: ${data.message || 'Unknown error'}${debugInfo}`);
+            }
+        } catch (err) {
+            console.error("[DELETE] Error:", err);
+            alert("Server error during deletion. Please check connection.");
+        }
+    };
+
     return (
         <div>
             <header className="ad-header">
@@ -51,13 +78,36 @@ export default function TeacherHomework() {
                     {homework.length === 0 ? (
                         <div className="ad-card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>
                             <p style={{ color: '#64748b' }}>No homework assigned yet for this session.</p>
-                            <button className="btn-primary" style={{ marginTop: '16px' }} onClick={() => navigate('/teacher/homework/new')}>Create Your First Assignment</button>
                         </div>
                     ) : (
                         homework.map((hw) => (
                             <div key={hw.id} className="ad-card">
-                                <h3>{hw.title}</h3>
-                                <div className="ad-card-value" style={{ fontSize: '18px', marginBottom: '8px' }}>{hw.description}</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                        <h3>{hw.title}</h3>
+                                        <div className="ad-card-value" style={{ fontSize: '18px', marginBottom: '8px' }}>{hw.description}</div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button 
+                                            onClick={() => navigate(`/teacher/homework/edit/${hw.id}`)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0ea5e9' }}
+                                            title="Edit"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                if (window.confirm("Are you sure you want to delete this homework?")) {
+                                                    deleteHomework(hw.id);
+                                                }
+                                            }}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
+                                            title="Delete"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </div>
                                 <p style={{ color: '#64748b', fontSize: '14px' }}>
                                     <strong>Due:</strong> {new Date(hw.due_date).toLocaleDateString()}
                                 </p>
@@ -77,10 +127,7 @@ export default function TeacherHomework() {
                                         </a>
                                     </div>
                                 )}
-                                <div style={{ marginTop: '16px' }}>
-                                    <button className="btn-primary btn-small">View Submissions</button>
                                 </div>
-                            </div>
                         ))
                     )}
                 </div>

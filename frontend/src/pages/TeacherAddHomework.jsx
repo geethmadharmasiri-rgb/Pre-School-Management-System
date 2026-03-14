@@ -1,14 +1,50 @@
-import React, { useState } from "react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { Icons } from "../components/Icons";
 
 const TeacherAddHomework = () => {
     const navigate = useNavigate();
+    const { id } = useParams();
+    const isEdit = !!id;
     const { selectedYearId } = useOutletContext();
     const [title, setTitle] = useState("");
     const [dueDate, setDueDate] = useState("");
     const [description, setDescription] = useState("");
     const [file, setFile] = useState(null);
+    const [existingFile, setExistingFile] = useState(null);
+    const [loading, setLoading] = useState(isEdit);
+
+    useEffect(() => {
+        if (isEdit) {
+            fetchHomework();
+        }
+    }, [id]);
+
+    const fetchHomework = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch(`http://localhost:5000/api/homework/${id}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setTitle(data.title);
+                // format date for input type="date"
+                if (data.due_date) {
+                    setDueDate(new Date(data.due_date).toISOString().split('T')[0]);
+                }
+                setDescription(data.description);
+                setExistingFile(data.file_path);
+            } else {
+                alert("Failed to fetch homework details");
+                navigate("/teacher/homework");
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleFileChange = (e) => {
         if (e.target.files[0]) {
@@ -36,8 +72,9 @@ const TeacherAddHomework = () => {
         }
 
         try {
-            const response = await fetch("http://localhost:5000/api/homework", {
-                method: "POST",
+            const url = isEdit ? `http://localhost:5000/api/homework/${id}` : "http://localhost:5000/api/homework";
+            const response = await fetch(url, {
+                method: isEdit ? "PUT" : "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`
                 },
@@ -45,24 +82,28 @@ const TeacherAddHomework = () => {
             });
 
             if (response.ok) {
-                alert("Homework assigned successfully!");
+                alert(isEdit ? "Homework updated successfully!" : "Homework assigned successfully!");
                 navigate("/teacher/homework");
             } else {
                 const data = await response.json();
-                alert(data.message || "Failed to assign homework");
+                alert(data.message || "Failed to save homework");
             }
         } catch (err) {
-            console.error("Error assigning homework:", err);
+            console.error("Error saving homework:", err);
             alert("Server error. Please try again.");
         }
     };
+
+    if (loading) return <div style={{ textAlign: 'center', padding: '100px' }}>Loading...</div>;
 
     return (
         <div>
             <header className="ad-header">
                 <div>
-                    <h1>Add New Homework</h1>
-                    <p className="ad-header-subtitle">Create a new assignment for your class</p>
+                    <h1>{isEdit ? "Edit Homework" : "Add New Homework"}</h1>
+                    <p className="ad-header-subtitle">
+                        {isEdit ? "Modify existing assignment details" : "Create a new assignment for your class"}
+                    </p>
                 </div>
             </header>
 
@@ -132,16 +173,20 @@ const TeacherAddHomework = () => {
                                 accept="video/*,image/*,.pdf,.doc,.docx"
                             />
                         </div>
-                        {file && (
+                        {file ? (
                             <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#ecfdf5', color: '#047857', borderRadius: '4px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span>✅</span> {file.name}
+                                <span>✅</span> {file.name} (New file ready to upload)
                             </div>
-                        )}
+                        ) : existingFile ? (
+                            <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#e0f2fe', color: '#0369a1', borderRadius: '4px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>📎</span> Existing file attached (Upload a new file to replace it)
+                            </div>
+                        ) : null}
                     </div>
 
                     <div className="ad-form-actions">
                         <button type="button" className="btn-secondary" onClick={() => navigate("/teacher/homework")}>Cancel</button>
-                        <button type="submit" className="btn-primary">Assign Homework</button>
+                        <button type="submit" className="btn-primary">{isEdit ? "Update Homework" : "Assign Homework"}</button>
                     </div>
                 </form>
             </div>
