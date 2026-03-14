@@ -2072,6 +2072,20 @@ app.put("/api/meal-plans", authRequired, async (req, res) => {
   }
 });
 
+app.delete("/api/meal-plans/:day", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "TEACHER" && req.user.role !== "ADMIN") {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+    const { day } = req.params;
+    await db.query("DELETE FROM meal_plans WHERE day_of_week = ?", [day]);
+    res.json({ message: `Meal plan for ${day} deleted successfully` });
+  } catch (err) {
+    console.error("DELETE /api/meal-plans error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 /* =========================
    ACADEMIC YEARS API
    GET /api/admin/academic-years

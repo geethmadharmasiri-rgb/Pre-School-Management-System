@@ -195,8 +195,8 @@ export default function ChildProfile() {
         Wednesday: { lunch: "Not Set", snack: "Not Set", icon: "🍳" },
         Thursday: { lunch: "Not Set", snack: "Not Set", icon: "🥪" },
         Friday: { lunch: "Not Set", snack: "Not Set", icon: "🍲" },
-        Saturday: { lunch: "No School", snack: "No School", icon: "🏠" },
-        Sunday: { lunch: "No School", snack: "No School", icon: "🏠" }
+        Saturday: { lunch: "Not Set", snack: "Not Set", icon: "🏠" },
+        Sunday: { lunch: "Not Set", snack: "Not Set", icon: "🏠" }
     });
 
     const [behaviorReports, setBehaviorReports] = useState([]);
@@ -500,65 +500,145 @@ export default function ChildProfile() {
                     </div>
                 );
             case "meal":
-                const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-
+                const dayColors = {
+                    Monday:    { gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', light: '#f3f0ff', border: '#c4b5fd', icon: '🍛' },
+                    Tuesday:   { gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', light: '#fff0f5', border: '#fbb6ce', icon: '🍝' },
+                    Wednesday: { gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', light: '#f0fbff', border: '#93c5fd', icon: '🍳' },
+                    Thursday:  { gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', light: '#f0fff9', border: '#6ee7b7', icon: '🥪' },
+                    Friday:    { gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', light: '#fffbf0', border: '#fcd34d', icon: '🍲' },
+                    Saturday:  { gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', light: '#f9fafb', border: '#e2e8f0', icon: '🏠' },
+                    Sunday:    { gradient: 'linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)', light: '#f9fafb', border: '#e2e8f0', icon: '🏠' },
+                };
                 return (
                     <div>
-                        {/* TODAY'S SPECIAL HIGHLIGHT */}
-                        <div className="ad-card" style={{
-                            background: 'linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)',
-                            border: '1px solid #fcd34d',
-                            marginBottom: '32px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '24px',
-                            textAlign: 'left'
+                        <div style={{ 
+                            display: 'flex', alignItems: 'center', gap: '12px', 
+                            marginBottom: '24px', textAlign: 'left' 
                         }}>
-                            <div style={{ fontSize: '48px' }}>🍽️</div>
+                            <span style={{ fontSize: '32px' }}>🍽️</span>
                             <div>
-                                <h3 style={{ color: '#92400e', marginBottom: '8px' }}>Today's Menu ({today})</h3>
-                                {weekPlan[today] ? (
-                                    <div>
-                                        <p style={{ fontSize: '20px', fontWeight: 700, color: '#1e293b', margin: '0 0 4px 0' }}>{weekPlan[today].lunch}</p>
-                                        <p style={{ color: '#b45309', fontWeight: 500, margin: 0 }}>+ {weekPlan[today].snack}</p>
-                                    </div>
-                                ) : (
-                                    <p style={{ color: '#92400e', margin: 0 }}>No meal plan set for today (Weekend?).</p>
-                                )}
+                                <h3 style={{ margin: 0, fontSize: '20px', color: '#0f172a' }}>Weekly Meal Schedule</h3>
+                                <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>Nutritional plan set by your child's teacher</p>
                             </div>
                         </div>
 
-                        <h3 style={{ marginBottom: '16px', color: 'var(--ad-text-secondary)', textAlign: 'left' }}>Weekly Schedule</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                            {Object.keys(weekPlan).map(day => {
+                                const colors = dayColors[day] || dayColors.Monday;
+                                const hasLunch = weekPlan[day].lunch && weekPlan[day].lunch !== "Not Set";
+                                const hasSnack = weekPlan[day].snack && weekPlan[day].snack !== "Not Set";
+                                const hasMenu = hasLunch || hasSnack;
+                                return (
+                                    <div key={day} style={{
+                                        borderRadius: '16px',
+                                        overflow: 'hidden',
+                                        boxShadow: hasMenu
+                                            ? '0 4px 20px rgba(0,0,0,0.10)'
+                                            : '0 1px 4px rgba(0,0,0,0.06)',
+                                        border: `1px solid ${colors.border}`,
+                                        transition: 'transform 0.2s, box-shadow 0.2s',
+                                        opacity: hasMenu ? 1 : 0.6
+                                    }}>
+                                        {/* Day Header */}
+                                        <div style={{
+                                            background: colors.gradient,
+                                            padding: '14px 18px',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                        }}>
+                                            <span style={{
+                                                fontWeight: 800,
+                                                color: 'white',
+                                                fontSize: '14px',
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '1.5px',
+                                                textShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                            }}>{day}</span>
+                                            <span style={{ fontSize: '26px' }}>{colors.icon}</span>
+                                        </div>
 
-                        <div className="ad-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                            {Object.keys(weekPlan).map(day => (
-                                <div key={day} className="ad-card" style={{
-                                    borderTop: day === today ? '4px solid #10b981' : '4px solid transparent',
-                                    textAlign: 'left',
-                                    alignItems: 'flex-start'
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', width: '100%' }}>
-                                        <span style={{
-                                            fontWeight: 700,
-                                            color: day === today ? '#10b981' : '#64748b',
-                                            textTransform: 'uppercase',
-                                            fontSize: '13px',
-                                            letterSpacing: '1px'
-                                        }}>{day}</span>
-                                        <span style={{ fontSize: '24px' }}>{weekPlan[day].icon}</span>
-                                    </div>
+                                        {/* Meal Content */}
+                                        <div style={{ padding: '16px 18px', backgroundColor: colors.light }}>
+                                            {/* Lunch */}
+                                            <div style={{ marginBottom: '12px' }}>
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                                    marginBottom: '4px'
+                                                }}>
+                                                    <span style={{ fontSize: '14px' }}>🍱</span>
+                                                    <span style={{
+                                                        fontSize: '10px', fontWeight: 700, color: '#64748b',
+                                                        textTransform: 'uppercase', letterSpacing: '1px'
+                                                    }}>Lunch</span>
+                                                </div>
+                                                {hasLunch ? (
+                                                    <div style={{
+                                                        background: 'white',
+                                                        borderRadius: '10px',
+                                                        padding: '10px 14px',
+                                                        border: `1px solid ${colors.border}`,
+                                                        fontWeight: 600,
+                                                        color: '#1e293b',
+                                                        fontSize: '14px',
+                                                        boxShadow: '0 1px 4px rgba(0,0,0,0.05)'
+                                                    }}>
+                                                        {weekPlan[day].lunch}
+                                                    </div>
+                                                ) : (
+                                                    <div style={{
+                                                        background: 'white',
+                                                        borderRadius: '10px',
+                                                        padding: '10px 14px',
+                                                        border: '1px dashed #e2e8f0',
+                                                        color: '#cbd5e1',
+                                                        fontSize: '13px',
+                                                        fontStyle: 'italic'
+                                                    }}>Not scheduled</div>
+                                                )}
+                                            </div>
 
-                                    <div style={{ marginBottom: '12px' }}>
-                                        <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>LUNCH</label>
-                                        <p style={{ fontWeight: 600, color: '#334155', marginTop: '4px', marginBottom: 0 }}>{weekPlan[day].lunch}</p>
+                                            {/* Snack */}
+                                            <div>
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                                    marginBottom: '4px'
+                                                }}>
+                                                    <span style={{ fontSize: '14px' }}>🍎</span>
+                                                    <span style={{
+                                                        fontSize: '10px', fontWeight: 700, color: '#64748b',
+                                                        textTransform: 'uppercase', letterSpacing: '1px'
+                                                    }}>Snack</span>
+                                                </div>
+                                                {hasSnack ? (
+                                                    <div style={{
+                                                        background: 'white',
+                                                        borderRadius: '10px',
+                                                        padding: '10px 14px',
+                                                        border: `1px solid ${colors.border}`,
+                                                        fontWeight: 600,
+                                                        color: '#1e293b',
+                                                        fontSize: '14px',
+                                                        boxShadow: '0 1px 4px rgba(0,0,0,0.05)'
+                                                    }}>
+                                                        {weekPlan[day].snack}
+                                                    </div>
+                                                ) : (
+                                                    <div style={{
+                                                        background: 'white',
+                                                        borderRadius: '10px',
+                                                        padding: '10px 14px',
+                                                        border: '1px dashed #e2e8f0',
+                                                        color: '#cbd5e1',
+                                                        fontSize: '13px',
+                                                        fontStyle: 'italic'
+                                                    }}>Not scheduled</div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-
-                                    <div>
-                                        <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>SNACK</label>
-                                        <p style={{ color: '#334155', marginTop: '4px', marginBottom: 0 }}>{weekPlan[day].snack}</p>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 );
