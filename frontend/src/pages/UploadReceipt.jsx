@@ -7,10 +7,11 @@ export default function UploadReceipt() {
     const location = useLocation();
 
     const initialChild = location.state?.child || null;
+    const initialDate = location.state?.assignedDate || new Date().toISOString().split('T')[0];
 
     const [selectedChild] = useState(initialChild || null);
     const [amount, setAmount] = useState("");
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(initialDate);
     const [reference, setReference] = useState("");
     const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
     const [receipt, setReceipt] = useState(null);
@@ -23,7 +24,7 @@ export default function UploadReceipt() {
         const loadFee = async () => {
             try {
                 const token = localStorage.getItem("token");
-                const res = await fetch("http://localhost:5000/api/admin/fee-settings", {
+                const res = await fetch("http://localhost:5000/api/fee-settings", {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 if (res.ok) {

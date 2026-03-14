@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../components/Icons";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const AdminPaymentDashboard = () => {
     const navigate = useNavigate();
@@ -15,6 +17,11 @@ const AdminPaymentDashboard = () => {
     const [globalFee, setGlobalFee] = useState(5000);
     const [feeInput, setFeeInput] = useState("");
     const [feeUpdating, setFeeUpdating] = useState(false);
+
+    // Month/Year filter — default to current month
+    const now = new Date();
+    const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
     const fetchFee = async () => {
         try {
@@ -47,7 +54,7 @@ const AdminPaymentDashboard = () => {
             if (res.ok) {
                 const data = await res.json();
                 setGlobalFee(data.monthly_fee);
-                fetchPayments(); // refresh the table with new amounts
+                fetchPayments(selectedMonth, selectedYear); // refresh the table with new amounts
                 alert(`✅ Monthly fee updated to Rs. ${data.monthly_fee} for all pending payments!`);
             } else {
                 alert("Failed to update fee.");
@@ -59,11 +66,12 @@ const AdminPaymentDashboard = () => {
         }
     };
 
-    const fetchPayments = async () => {
+    const fetchPayments = async (month, year) => {
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
-            const res = await fetch("http://localhost:5000/api/admin/payments", {
+            const params = month && year ? `?month=${month}&year=${year}` : '';
+            const res = await fetch(`http://localhost:5000/api/admin/payments${params}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = await res.json();
@@ -76,9 +84,9 @@ const AdminPaymentDashboard = () => {
     };
 
     useEffect(() => {
-        fetchPayments();
+        fetchPayments(selectedMonth, selectedYear);
         fetchFee();
-    }, []);
+    }, [selectedMonth, selectedYear]);
 
     // Filtering
     const filteredPayments = payments.filter(payment => {
@@ -100,7 +108,7 @@ const AdminPaymentDashboard = () => {
                 body: JSON.stringify({ status, amount })
             });
             if (res.ok) {
-                fetchPayments(); // refresh list
+                fetchPayments(selectedMonth, selectedYear); // refresh list
                 setShowModal(false);
             } else {
                 alert("Failed to update payment status");
@@ -124,6 +132,56 @@ const AdminPaymentDashboard = () => {
         updatePaymentStatus(id, "Failed", amount);
     };
 
+    const handleGenerateReport = () => {
+        const doc = new jsPDF();
+        
+        // Add Title
+        doc.setFontSize(20);
+        const title = `Monthly Payment Report - ${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+        doc.text(title, 14, 22);
+
+        // Add summary info
+        doc.setFontSize(11);
+        doc.text(`Total Records: ${filteredPayments.length}`, 14, 32);
+        
+        let totalAmount = 0;
+        let verifiedCount = 0;
+        filteredPayments.forEach(p => {
+            if (p.status === 'Verified') {
+                totalAmount += parseFloat(p.amount) || 0;
+                verifiedCount++;
+            }
+        });
+        
+        doc.text(`Verified Payments: ${verifiedCount}`, 14, 38);
+        doc.text(`Total Amount Collected: Rs. ${totalAmount.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`, 14, 44);
+
+        // Define table columns and data
+        const columns = ["Payment ID", "Parent Name", "Child Name", "Amount (Rs.)", "Date", "Status"];
+        const rows = filteredPayments.map(p => [
+            p.id,
+            p.parent,
+            p.child,
+            `Rs. ${parseFloat(p.amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`,
+            p.date || 'Not Paid',
+            p.status
+        ]);
+
+        autoTable(doc, {
+            startY: 50,
+            head: [columns],
+            body: rows,
+            theme: 'striped',
+            headStyles: { fillColor: [14, 165, 233] }, // Matches brand accent color
+            styles: { fontSize: 10, cellPadding: 3 },
+            alternateRowStyles: { fillColor: [241, 245, 249] }
+        });
+
+        // Save the PDF
+        const fileName = `Payment_Report_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.pdf`;
+        doc.save(fileName);
+    };
+
 
     const openVerificationModal = (payment) => {
         setSelectedPayment(payment);
@@ -133,10 +191,11 @@ const AdminPaymentDashboard = () => {
 
     const getStatusBadge = (status) => {
         switch (status) {
-            case "Verified": return <span className="status-badge verified">Verified</span>;
-            case "Pending": return <span className="status-badge pending">Pending</span>;
-            case "Failed": return <span className="status-badge failed">Failed</span>;
-            default: return <span className="status-badge">{status}</span>;
+            case "Verified": return <span className="status-badge verified" style={{ backgroundColor: '#dcfce7', color: '#15803d', fontWeight: 700 }}>✅ Paid</span>;
+            case "Pending": return <span className="status-badge pending" style={{ backgroundColor: '#fef3c7', color: '#b45309', fontWeight: 700 }}>⏳ Pending</span>;
+            case "Failed": return <span className="status-badge failed" style={{ backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: 700 }}>❌ Failed</span>;
+            case "Due": return <span className="status-badge" style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontWeight: 700 }}>🟡 Not Paid</span>;
+            default: return <span className="status-badge" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>{status || 'Not Paid'}</span>;
         }
     };
 
@@ -276,6 +335,31 @@ const AdminPaymentDashboard = () => {
                     />
                 </div>
 
+                {/* MONTH FILTER */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>📅 Month:</label>
+                    <select
+                        className="ad-select"
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                        style={{ width: 'auto' }}
+                    >
+                        {["January","February","March","April","May","June","July","August","September","October","November","December"].map((m, i) => (
+                            <option key={i} value={i + 1}>{m}</option>
+                        ))}
+                    </select>
+                    <select
+                        className="ad-select"
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                        style={{ width: 'auto' }}
+                    >
+                        {[2024, 2025, 2026, 2027].map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
+                </div>
+
                 <select
                     className="ad-select"
                     value={statusFilter}
@@ -283,9 +367,10 @@ const AdminPaymentDashboard = () => {
                     style={{ width: 'auto' }}
                 >
                     <option value="All">All Status</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Verified">Verified</option>
-                    <option value="Failed">Failed</option>
+                    <option value="Pending">⏳ Pending</option>
+                    <option value="Verified">✅ Paid</option>
+                    <option value="Due">🟡 Not Paid</option>
+                    <option value="Failed">❌ Failed</option>
                 </select>
             </div>
 
@@ -306,25 +391,28 @@ const AdminPaymentDashboard = () => {
                     </thead>
                     <tbody>
                         {filteredPayments.map(payment => (
-                            <tr key={payment.id}>
-                                <td>{payment.id}</td>
+                            <tr key={payment.id} style={{
+                                backgroundColor: payment.status === 'Verified' ? '#f0fdf4' : (payment.status === 'Pending' && payment.has_receipt ? '#fefce8' : 'transparent')
+                            }}>
+                                <td style={{ fontSize: '12px', color: '#64748b' }}>{payment.id}</td>
                                 <td>{payment.parent}</td>
-                                <td>{payment.child}</td>
+                                <td style={{ fontWeight: 600 }}>{payment.child}</td>
                                 <td>{payment.class}</td>
-                                <td style={{ fontWeight: 600 }}>
-                                    {payment.amount}
-                                    <span style={{ marginLeft: '8px', cursor: 'pointer', fontSize: '10px', opacity: 0.6 }} title="Click View to Edit">📝</span>
+                                <td style={{ fontWeight: 700 }}>
+                                    Rs. {parseFloat(payment.amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
                                 </td>
-                                <td>{payment.date}</td>
-                                 <td>
-                                     {getStatusBadge(payment.status)}
-                                     {payment.has_receipt && (
-                                         <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '8px', fontWeight: 600 }}>📎 Receipt</span>
-                                     )}
-                                 </td>
+                                <td style={{ color: payment.date ? '#0f172a' : '#94a3b8', fontStyle: payment.date ? 'normal' : 'italic' }}>
+                                    {payment.date || 'Not Paid'}
+                                </td>
+                                <td>
+                                    {getStatusBadge(payment.status)}
+                                    {payment.has_receipt && (
+                                        <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 7px', borderRadius: '8px', fontWeight: 700 }}>📎 Receipt</span>
+                                    )}
+                                </td>
                                 <td>
                                     <button className="action-btn view" onClick={() => openVerificationModal(payment)}>View</button>
-                                    {payment.status === "Pending" && (
+                                    {(payment.status === "Pending") && (
                                         <>
                                             <button className="action-btn approve" onClick={() => handleApprove(payment.id, payment.amount)}>Approve</button>
                                             <button className="action-btn reject" onClick={() => handleReject(payment.id, payment.amount)}>Reject</button>
@@ -349,7 +437,7 @@ const AdminPaymentDashboard = () => {
                 <button className="btn-primary btn-small" onClick={() => navigate('/admin/payments/new')}>
                     <span className="icon">{Icons.plus}</span> Add Manual Payment
                 </button>
-                <button className="btn-secondary btn-small">
+                <button className="btn-secondary btn-small" onClick={handleGenerateReport}>
                     <span className="icon">{Icons.reports}</span> Generate Payment Report
                 </button>
             </div>

@@ -165,6 +165,13 @@ app.get("/", (req, res) => {
       console.error("receipt_path migration error:", e.message);
     }
   }
+  // Ensure payments status ENUM includes all necessary values
+  try {
+    await db.query(`ALTER TABLE payments MODIFY COLUMN status ENUM('Pending', 'Verified', 'Failed', 'Paid', 'Overdue') DEFAULT 'Pending'`);
+    console.log("✅ Migration: payments status ENUM updated");
+  } catch (e) {
+    console.error("payments status migration error:", e.message);
+  }
 })();
 
 // ✅ Improved DB test
@@ -2373,6 +2380,17 @@ app.put("/api/children/:id/health-info", authRequired, async (req, res) => {
 /* =========================
    FEE SETTINGS API
 ========================= */
+// Shared: any authenticated user can read the current global fee
+app.get("/api/fee-settings", authRequired, async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT monthly_fee, updated_at FROM fee_settings WHERE id = 1");
+    res.json(rows[0] || { monthly_fee: 5000.00 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 app.get("/api/admin/fee-settings", authRequired, async (req, res) => {
   try {
     if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
@@ -2396,8 +2414,8 @@ app.put("/api/admin/fee-settings", authRequired, async (req, res) => {
     // Update the global fee
     await db.query("INSERT INTO fee_settings (id, monthly_fee) VALUES (1, ?) ON DUPLICATE KEY UPDATE monthly_fee = ?", [monthlyFee, monthlyFee]);
 
-    // Update ALL pending (unpaid) payment records to use the new fee
-    await db.query("UPDATE payments SET amount = ? WHERE status = 'Pending'", [monthlyFee]);
+    // Update ALL non-paid payment records to use the new fee (Pending, Overdue, Failed, or NULL status)
+    await db.query("UPDATE payments SET amount = ? WHERE status IS NULL OR status NOT IN ('Paid', 'Verified')", [monthlyFee]);
 
     res.json({ message: "Fee updated for all pending payments", monthly_fee: monthlyFee });
   } catch (err) {
@@ -2413,42 +2431,63 @@ app.get("/api/admin/payments", authRequired, async (req, res) => {
   try {
     if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
 
+    const { month, year } = req.query; // optional: e.g. ?month=3&year=2026
+
     // Get the global default fee
     const [feeRows] = await db.query("SELECT monthly_fee FROM fee_settings WHERE id = 1");
     const defaultFee = feeRows.length > 0 ? parseFloat(feeRows[0].monthly_fee) : 5000.00;
 
-    // Fetch all children with their parents (aggregated) and their latest unpaid payments
+    // For each child, get their LATEST payment using a correlated subquery
+    // Include ALL statuses (Paid, Pending, Overdue) so admin can see paid children too
     const [rows] = await db.query(`
       SELECT 
         c.id as child_id, c.first_name, c.last_name,
         GROUP_CONCAT(DISTINCT u.name SEPARATOR ', ') as parent_names,
         MAX(cl.name) as class_name,
-        p.id as _pay_id, MAX(p.amount) as amount, MAX(p.payment_date) as payment_date, 
-        MAX(p.status) as status, MAX(p.payment_method) as payment_method, MAX(p.receipt_path) as receipt_path
+        p.id as _pay_id, p.amount, p.payment_date, p.status, p.payment_method, p.receipt_path
       FROM children c
       LEFT JOIN parent_child pc ON c.id = pc.child_id
       LEFT JOIN parents pr ON pc.parent_id = pr.id
       LEFT JOIN users u ON pr.user_id = u.id
       LEFT JOIN classes cl ON c.class_id = cl.id
-      LEFT JOIN payments p ON p.child_id = c.id AND p.status != 'Paid'
+      LEFT JOIN payments p ON p.id = (
+        SELECT id FROM payments 
+        WHERE child_id = c.id 
+        ORDER BY payment_date DESC, id DESC 
+        LIMIT 1
+      )
       GROUP BY c.id, p.id
-      ORDER BY p.payment_date DESC, c.first_name ASC
+      ORDER BY c.first_name ASC
     `);
 
-    const formatted = rows.map(r => ({
+    let formatted = rows.map(r => ({
       id: r._pay_id ? "P" + r._pay_id.toString().padStart(3, '0') : "PENDING-" + r.child_id,
       actual_pay_id: r._pay_id,
       child_id: r.child_id,
       parent: r.parent_names || "No Parent linked",
       child: r.first_name + " " + r.last_name,
       class: r.class_name || "Unassigned",
-      amount: r.amount || defaultFee,
-      date: r.payment_date ? new Date(r.payment_date).toISOString().split('T')[0] : "Not Paid",
-      status: r.status === 'Paid' ? 'Verified' : (r.status === 'Overdue' ? 'Failed' : 'Pending'),
+      amount: r.amount ? parseFloat(r.amount) : defaultFee,
+      date: r.payment_date ? new Date(r.payment_date).toISOString().split('T')[0] : null,
+      payment_month: r.payment_date ? new Date(r.payment_date).getMonth() + 1 : null,
+      payment_year: r.payment_date ? new Date(r.payment_date).getFullYear() : null,
+      status: (r.status === 'Verified' || r.status === 'Paid') ? 'Verified' : ((r.status === 'Failed' || r.status === 'Overdue') ? 'Failed' : 'Pending'),
       type: r.payment_method || "Online",
       receipt_url: r.receipt_path ? `http://localhost:5000/${r.receipt_path}` : null,
       has_receipt: !!r.receipt_path
     }));
+
+    // If month+year filter provided, filter by payment month
+    if (month && year) {
+      const m = parseInt(month);
+      const y = parseInt(year);
+      formatted = formatted.map(r => {
+        // Child paid in this month — show their record
+        if (r.payment_month === m && r.payment_year === y) return r;
+        // Child has no payment for this month — show as Due
+        return { ...r, status: 'Due', date: null, has_receipt: false, receipt_url: null, id: "PENDING-" + r.child_id, actual_pay_id: null };
+      });
+    }
 
     res.json(formatted);
   } catch (err) {
@@ -2457,23 +2496,108 @@ app.get("/api/admin/payments", authRequired, async (req, res) => {
   }
 });
 
+app.get("/api/admin/payments/child-info/:id", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    const childId = req.params.id;
+
+    // Fetch global fee
+    const [feeRows] = await db.query("SELECT monthly_fee FROM fee_settings WHERE id = 1");
+    const globalFee = feeRows.length > 0 ? parseFloat(feeRows[0].monthly_fee) : 5000.00;
+
+    // Fetch child and parent details
+    const [rows] = await db.query(`
+      SELECT c.first_name, c.last_name, 
+             u.name as parent_name, u.email as parent_email
+      FROM children c
+      LEFT JOIN parent_child pc ON c.id = pc.child_id
+      LEFT JOIN parents p ON pc.parent_id = p.id
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE c.id = ? 
+      LIMIT 1
+    `, [childId]);
+
+    if (rows.length === 0) return res.status(404).json({ message: "Child not found" });
+    
+    res.json({
+      childName: `${rows[0].first_name} ${rows[0].last_name}`,
+      parentName: rows[0].parent_name || 'No Parent Linked',
+      globalFee
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post("/api/admin/payments", authRequired, upload.single("bankSlip"), async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+
+    const { childId, amount, paymentDate, paymentMethod, notes } = req.body;
+    if (!childId || !amount) return res.status(400).json({ message: "childId and amount are required" });
+
+    // Handle bank slip upload if provided
+    const receiptPath = req.file ? `uploads/${req.file.filename}` : null;
+    const payDate = paymentDate || new Date().toISOString().split('T')[0];
+    
+    // Find parentId linked to child
+    const [pcRows] = await db.query("SELECT parent_id FROM parent_child WHERE child_id = ? LIMIT 1", [childId]);
+    const parentId = pcRows.length > 0 ? pcRows[0].parent_id : null;
+
+    // Target month processing
+    const pDate = new Date(payDate);
+    const m = pDate.getMonth();
+    const y = pDate.getFullYear();
+
+    // Look for existing pending payment for this exact month (if checking month strictly)
+    const [existing] = await db.query(
+      "SELECT id FROM payments WHERE child_id = ? AND MONTH(payment_date) = ? AND YEAR(payment_date) = ? LIMIT 1", 
+      [childId, m + 1, y]
+    );
+
+    if (existing.length > 0) {
+      await db.query(
+        "UPDATE payments SET parent_id = IFNULL(?, parent_id), amount = ?, payment_date = ?, payment_method = ?, receipt_path = IFNULL(?, receipt_path), status = 'Paid', notes = ? WHERE id = ?",
+        [parentId, parseFloat(amount), payDate, paymentMethod, receiptPath, notes, existing[0].id]
+      );
+    } else {
+      await db.query(
+        "INSERT INTO payments (parent_id, child_id, amount, payment_date, payment_method, status, receipt_path, notes) VALUES (?, ?, ?, ?, ?, 'Paid', ?, ?)",
+        [parentId, childId, parseFloat(amount), payDate, paymentMethod, receiptPath, notes]
+      );
+    }
+
+    res.json({ message: "Manual payment recorded successfully" });
+  } catch (err) {
+    console.error("POST /api/admin/payments error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 app.put("/api/admin/payments/:id/status", authRequired, async (req, res) => {
   try {
     if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
-    const { status, amount } = req.body; 
+    const { status, amount } = req.body;
+    console.log("PUT /api/admin/payments/:id/status =>", req.params.id, "status:", status, "amount:", amount);
+    
     const dbStatus = status === "Verified" ? "Paid" : (status === "Failed" ? "Overdue" : "Pending");
     
-    // Sanitize amount: remove spaces and parse
     const rawAmount = (amount || "5000").toString().replace(/\s/g, '');
     const payAmount = parseFloat(rawAmount) || 5000.00;
     
     if (req.params.id.startsWith("PENDING-")) {
-      const childId = req.params.id.split("-")[1];
-      const [pc] = await db.query("SELECT parent_id FROM parent_child WHERE child_id = ? LIMIT 1", [childId]);
+      const childId = parseInt(req.params.id.split("-")[1]);
+      if (!childId) return res.status(400).json({ message: "Invalid child ID" });
       
-      let parentId = null;
-      if (pc.length > 0) {
-        parentId = pc[0].parent_id;
+      const [pc] = await db.query("SELECT parent_id FROM parent_child WHERE child_id = ? LIMIT 1", [childId]);
+      let parentId = pc.length > 0 ? pc[0].parent_id : null;
+
+      // Check if a payment already exists for this child that we should update instead
+      const [existing] = await db.query("SELECT id FROM payments WHERE child_id = ? ORDER BY id DESC LIMIT 1", [childId]);
+      if (existing.length > 0) {
+        await db.query("UPDATE payments SET status = ?, amount = ? WHERE id = ?", [dbStatus, payAmount, existing[0].id]);
+        return res.json({ message: "Payment updated", actual_pay_id: existing[0].id });
       }
 
       const [result] = await db.query(
@@ -2483,11 +2607,17 @@ app.put("/api/admin/payments/:id/status", authRequired, async (req, res) => {
       return res.json({ message: "Payment created and updated", actual_pay_id: result.insertId });
     }
 
-    await db.query("UPDATE payments SET status = ?, amount = ? WHERE id = ?", [dbStatus, payAmount, req.params.id.replace('P', '')]);
+    // Extract numeric ID from "P001" format
+    const numericId = parseInt(req.params.id.replace(/^P0*/i, ''));
+    if (!numericId || isNaN(numericId)) {
+      return res.status(400).json({ message: "Invalid payment ID: " + req.params.id });
+    }
+    
+    await db.query("UPDATE payments SET status = ?, amount = ? WHERE id = ?", [dbStatus, payAmount, numericId]);
     res.json({ message: "Payment status and amount updated" });
   } catch(err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("PUT /api/admin/payments/:id/status ERROR:", err.message, err.sql || '');
+    res.status(500).json({ message: "Server error: " + err.message });
   }
 });
 
@@ -2499,32 +2629,82 @@ app.get("/api/parent/payments", authRequired, async (req, res) => {
     if (!parents.length) return res.status(404).json({ message: "Parent profile not found" });
     const parentId = parents[0].id;
 
-    // Get default fee
+    // Always get current global fee from fee_settings — this is the source of truth
     const [feeRows] = await db.query("SELECT monthly_fee FROM fee_settings WHERE id = 1");
-    const defaultFee = feeRows.length > 0 ? feeRows[0].monthly_fee : 5000.00;
+    const globalFee = feeRows.length > 0 ? parseFloat(feeRows[0].monthly_fee) : 5000.00;
 
-    // Fetch children and their latest payment per child
+    // Fetch children, and for each child get their LATEST payment using a subquery
     const [rows] = await db.query(`
       SELECT 
         c.id as child_id, c.first_name, c.last_name,
-        p.id as payment_id, p.amount, p.payment_date, p.status, p.payment_method, p.receipt_path
+        p.id as payment_id, p.amount as paid_amount, p.payment_date, p.status, p.payment_method, p.receipt_path
       FROM children c
       JOIN parent_child pc ON c.id = pc.child_id
-      LEFT JOIN payments p ON p.child_id = c.id
+      LEFT JOIN payments p ON p.id = (
+        SELECT id FROM payments 
+        WHERE child_id = c.id 
+        ORDER BY payment_date DESC, id DESC 
+        LIMIT 1
+      )
       WHERE pc.parent_id = ?
-      GROUP BY c.id
-      ORDER BY p.payment_date DESC, c.first_name ASC
+      ORDER BY c.first_name ASC
     `, [parentId]);
 
     const result = rows.map(r => ({
-      ...r,
-      amount: r.amount || defaultFee,
+      child_id: r.child_id,
+      first_name: r.first_name,
+      last_name: r.last_name,
+      payment_id: r.payment_id,
+      // Always show the global fee — admin controls this
+      amount: globalFee,
+      // Show what was actually paid if verified
+      paid_amount: r.paid_amount || null,
+      payment_date: r.payment_date,
+      // Map DB ENUMs to strings expected by parent dashboard
+      status: (r.status === 'Verified' || r.status === 'Paid') ? 'Paid' : ((r.status === 'Failed' || r.status === 'Overdue') ? 'Overdue' : (r.status || 'Pending')),
+      payment_method: r.payment_method,
       receipt_url: r.receipt_path ? `http://localhost:5000/${r.receipt_path}` : null
     }));
 
     res.json(result);
   } catch (err) {
     console.error("GET /api/parent/payments error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/api/parent/children/:childId/payment-history", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "PARENT") return res.status(403).json({ message: "Parent only" });
+
+    const childId = req.params.childId;
+    const [parents] = await db.query("SELECT id FROM parents WHERE user_id = ?", [req.user.id]);
+    if (!parents.length) return res.status(404).json({ message: "Parent profile not found" });
+    const parentId = parents[0].id;
+
+    const [link] = await db.query("SELECT 1 FROM parent_child WHERE parent_id = ? AND child_id = ?", [parentId, childId]);
+    if (!link.length) return res.status(403).json({ message: "Access denied" });
+
+    const [feeRows] = await db.query("SELECT monthly_fee FROM fee_settings WHERE id = 1");
+    const globalFee = feeRows.length > 0 ? parseFloat(feeRows[0].monthly_fee) : 5000.00;
+
+    const [rows] = await db.query(`
+      SELECT id, amount, payment_date, status, payment_method, receipt_path
+      FROM payments 
+      WHERE child_id = ?
+      ORDER BY payment_date DESC
+    `, [childId]);
+
+    res.json({
+      history: rows.map(r => ({
+        ...r,
+        display_status: (r.status === 'Verified' || r.status === 'Paid') ? 'Paid' : ((r.status === 'Failed' || r.status === 'Overdue') ? 'Overdue' : (r.status || 'Pending')),
+        receipt_url: r.receipt_path ? `http://localhost:5000/${r.receipt_path}` : null
+      })),
+      globalFee
+    });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });

@@ -202,6 +202,8 @@ export default function ChildProfile() {
     const [behaviorReports, setBehaviorReports] = useState([]);
     const [homework, setHomework] = useState([]);
     const [childPayment, setChildPayment] = useState(null);
+    const [paymentHistory, setPaymentHistory] = useState([]);
+    const [globalFee, setGlobalFee] = useState(5000);
 
     React.useEffect(() => {
         const fetchMealPlans = async () => {
@@ -244,16 +246,34 @@ export default function ChildProfile() {
             } catch (err) { console.error(err); }
         };
 
-        const fetchChildPayment = async () => {
+        const fetchChildPaymentHistory = async () => {
             try {
                 const token = localStorage.getItem("token");
-                const res = await fetch(`http://localhost:5000/api/parent/payments`, {
+                const res = await fetch(`http://localhost:5000/api/parent/children/${id}/payment-history`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                const data = await res.json();
-                // Find payment for this specific child
-                const thisChildPay = data.find(p => p.child_id == id);
-                setChildPayment(thisChildPay);
+                if (res.ok) {
+                    const data = await res.json();
+                    setPaymentHistory(data.history || []);
+                    setGlobalFee(data.globalFee || 5000);
+                    // Set latest payment for the quick status
+                    if (data.history && data.history.length > 0) {
+                        setChildPayment(data.history[0]);
+                    }
+                }
+            } catch (err) { console.error(err); }
+        };
+
+        const fetchGlobalFee = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const res = await fetch(`http://localhost:5000/api/fee-settings`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setGlobalFee(parseFloat(data.monthly_fee));
+                }
             } catch (err) { console.error(err); }
         };
 
@@ -261,7 +281,8 @@ export default function ChildProfile() {
         if (id) {
             fetchBehaviorReports();
             fetchHomework();
-            fetchChildPayment();
+            fetchChildPaymentHistory();
+            fetchGlobalFee();
         }
     }, [id]);
 
@@ -289,9 +310,9 @@ export default function ChildProfile() {
                                     <span>Payment</span>
                                     <span style={{ 
                                         fontWeight: 700, 
-                                        color: childPayment?.status === 'Paid' ? '#16a34a' : (childPayment?.status === 'Pending' ? '#b45309' : '#ef4444') 
+                                        color: (childPayment?.display_status === 'Paid' || childPayment?.status === 'Verified') ? '#16a34a' : (childPayment?.display_status === 'Pending' ? '#b45309' : '#ef4444') 
                                     }}>
-                                        {childPayment?.status === 'Paid' ? '✅ Paid' : (childPayment?.status === 'Pending' ? '⏳ Pending' : '⚠️ Due')}
+                                        {(childPayment?.display_status === 'Paid' || childPayment?.status === 'Verified') ? '✅ Paid' : (childPayment?.display_status === 'Pending' ? '⏳ Pending' : '⚠️ Due')}
                                     </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
@@ -739,30 +760,72 @@ export default function ChildProfile() {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td style={{ fontWeight: 600 }}>
-                                        {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
-                                    </td>
-                                    <td style={{ fontWeight: 700, color: '#0f172a' }}>
-                                        Rs. {childPayment ? parseFloat(childPayment.amount).toLocaleString('en-LK', { minimumFractionDigits: 2 }) : "5,000.00"}
-                                    </td>
-                                    <td style={{ color: '#64748b' }}>
-                                        {childPayment?.payment_date ? new Date(childPayment.payment_date).toLocaleDateString() : "Pending"}
-                                    </td>
-                                    <td>{getStatusBadge(childPayment?.status)}</td>
-                                    <td>
-                                        {childPayment?.status === "Paid" ? (
-                                            <span style={{ color: '#16a34a', fontWeight: 700 }}>VERIFIED</span>
-                                        ) : (
-                                            <button 
-                                                className="btn-primary btn-small" 
-                                                onClick={() => navigate("/parent/upload-receipt", { state: { child: childData } })}
-                                            >
-                                                {childPayment?.status === "Pending" ? "Update Receipt" : "Upload Receipt"}
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
+                                {(() => {
+                                    const currentMonth = new Date().getMonth();
+                                    const currentYear = new Date().getFullYear();
+                                    
+                                    const rows = [];
+                                    let latestPaidMonth = -1;
+                                    
+                                    // Find the latest paid/processing month in the current year
+                                    for (let m = 0; m < 12; m++) {
+                                        const record = paymentHistory.find(p => {
+                                            if (!p.payment_date) return false;
+                                            const pDate = new Date(p.payment_date);
+                                            return pDate.getMonth() === m && pDate.getFullYear() === currentYear && (p.status === 'Verified' || p.display_status === 'Paid' || p.display_status === 'Pending');
+                                        });
+                                        if (record) {
+                                            latestPaidMonth = m;
+                                        }
+                                    }
+
+                                    // Display up to current month, or the next month if current is already paid/pending
+                                    const monthsToGenerate = Math.max(currentMonth + 1, latestPaidMonth + 2);
+
+                                    for (let i = 0; i < monthsToGenerate; i++) {
+                                        const monthIndex = i % 12;
+                                        const queryYear = currentYear + Math.floor(i / 12);
+                                        const monthName = new Date(queryYear, monthIndex).toLocaleString('default', { month: 'long' });
+                                        
+                                        const record = paymentHistory.find(p => {
+                                            if (!p.payment_date) return false;
+                                            const pDate = new Date(p.payment_date);
+                                            return pDate.getMonth() === monthIndex && pDate.getFullYear() === queryYear;
+                                        });
+
+                                        rows.push(
+                                            <tr key={i}>
+                                                <td style={{ fontWeight: 600 }}>
+                                                    {monthName} {queryYear}
+                                                </td>
+                                                <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                                                    Rs. {globalFee.toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td style={{ color: '#64748b' }}>
+                                                    {record?.payment_date ? new Date(record.payment_date).toLocaleDateString() : "Pending"}
+                                                </td>
+                                                <td>{getStatusBadge(record?.display_status)}</td>
+                                                <td>
+                                                    {(record?.display_status === "Paid" || record?.status === "Verified") ? (
+                                                        <span style={{ color: '#16a34a', fontWeight: 700 }}>VERIFIED</span>
+                                                    ) : (
+                                                        <button 
+                                                            className="btn-primary btn-small" 
+                                                            onClick={() => {
+                                                                // Use the 2nd of the target month to avoid timezone shifting to previous month
+                                                                const targetDate = new Date(queryYear, monthIndex, 2).toISOString().split('T')[0];
+                                                                navigate("/parent/upload-receipt", { state: { child: childData, assignedDate: targetDate } });
+                                                            }}
+                                                        >
+                                                            {record?.display_status === "Pending" ? "Update Receipt" : "Upload Receipt"}
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+                                    return rows.reverse();
+                                })()}
                             </tbody>
                         </table>
                         <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '13px', color: '#64748b', border: '1px solid #e2e8f0' }}>
