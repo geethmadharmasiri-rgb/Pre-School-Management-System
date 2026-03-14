@@ -10,7 +10,8 @@ export default function TeacherHealthInfo() {
     const [editForm, setEditForm] = useState({
         allergies: "",
         medications: "",
-        health_notes: "",
+        health_notes: "",          // parent's notes (read-only for teacher)
+        teacher_health_notes: "",  // teacher's own notes (editable)
         medical_conditions: "",
         blood_type: ""
     });
@@ -43,6 +44,7 @@ export default function TeacherHealthInfo() {
             allergies: child.allergies || "None",
             medications: child.medications || "None",
             health_notes: child.health_notes || "",
+            teacher_health_notes: child.teacher_health_notes || "",
             medical_conditions: child.medical_conditions || "",
             blood_type: child.blood_type || ""
         });
@@ -58,11 +60,11 @@ export default function TeacherHealthInfo() {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`
                 },
-                body: JSON.stringify(editForm)
+                body: JSON.stringify({ teacher_health_notes: editForm.teacher_health_notes })
             });
 
             if (res.ok) {
-                alert("Health information updated!");
+                alert("Health note saved!");
                 setSelectedChild(null);
                 fetchChildren();
             } else {
@@ -153,67 +155,89 @@ export default function TeacherHealthInfo() {
                         </div>
 
                         <form onSubmit={handleUpdate}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                                <div className="ad-form-group">
-                                    <label>Blood Type</label>
-                                    <select
-                                        className="ad-input"
-                                        value={editForm.blood_type}
-                                        onChange={e => setEditForm({ ...editForm, blood_type: e.target.value })}
-                                    >
-                                        <option value="">Unknown</option>
-                                        <option value="A+">A+</option>
-                                        <option value="A-">A-</option>
-                                        <option value="B+">B+</option>
-                                        <option value="B-">B-</option>
-                                        <option value="AB+">AB+</option>
-                                        <option value="AB-">AB-</option>
-                                        <option value="O+">O+</option>
-                                        <option value="O-">O-</option>
-                                    </select>
+                            {/* READ-ONLY: Parent-supplied medical info */}
+                            <div style={{
+                                backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                                borderRadius: '10px', padding: '14px', marginBottom: '16px'
+                            }}>
+                                <p style={{ margin: '0 0 10px 0', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                    📋 Medical Info (provided by Parent)
+                                </p>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    {[
+                                        { label: 'BLOOD TYPE', value: editForm.blood_type },
+                                        { label: 'ALLERGIES', value: editForm.allergies, alert: editForm.allergies && editForm.allergies !== 'None' },
+                                        { label: 'MEDICAL CONDITIONS', value: editForm.medical_conditions },
+                                        { label: 'MEDICATION', value: editForm.medications },
+                                    ].map(item => (
+                                        <div key={item.label}>
+                                            <p style={{ margin: '0 0 2px 0', fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>{item.label}</p>
+                                            <p style={{ margin: 0, fontWeight: 600, fontSize: '13px', color: item.alert ? '#ef4444' : '#334155' }}>
+                                                {item.value || <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Not specified</span>}
+                                            </p>
+                                        </div>
+                                    ))}
                                 </div>
-                                <div className="ad-form-group">
-                                    <label>Allergies</label>
-                                    <input
-                                        className="ad-input"
-                                        value={editForm.allergies}
-                                        onChange={e => setEditForm({ ...editForm, allergies: e.target.value })}
-                                        placeholder="e.g. Peanuts, Dust"
+                            </div>
+
+                            {/* DUAL NOTES SECTION */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+
+                                {/* Parent's Notes - READ ONLY */}
+                                <div style={{
+                                    border: '2px solid #bfdbfe', borderRadius: '10px',
+                                    padding: '12px', backgroundColor: '#eff6ff'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                                        <span style={{ fontSize: '16px' }}>👨‍👩‍👧</span>
+                                        <span style={{ fontWeight: 700, fontSize: '12px', color: '#1d4ed8' }}>Parent's Notes</span>
+                                        <span style={{
+                                            fontSize: '9px', backgroundColor: '#dbeafe', color: '#1d4ed8',
+                                            padding: '1px 6px', borderRadius: '99px', fontWeight: 700, marginLeft: 'auto'
+                                        }}>View Only</span>
+                                    </div>
+                                    <p style={{
+                                        margin: 0, fontSize: '13px', color: '#334155',
+                                        whiteSpace: 'pre-wrap', lineHeight: '1.5',
+                                        minHeight: '60px',
+                                        fontStyle: editForm.health_notes ? 'normal' : 'italic',
+                                        color: editForm.health_notes ? '#334155' : '#94a3b8'
+                                    }}>
+                                        {editForm.health_notes || 'No notes from parent yet.'}
+                                    </p>
+                                </div>
+
+                                {/* Teacher's Notes - EDITABLE */}
+                                <div style={{
+                                    border: '2px solid #bbf7d0', borderRadius: '10px',
+                                    padding: '12px', backgroundColor: '#f0fdf4'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                                        <span style={{ fontSize: '16px' }}>👩‍🏫</span>
+                                        <span style={{ fontWeight: 700, fontSize: '12px', color: '#15803d' }}>Teacher's Notes</span>
+                                        <span style={{
+                                            fontSize: '9px', backgroundColor: '#dcfce7', color: '#15803d',
+                                            padding: '1px 6px', borderRadius: '99px', fontWeight: 700, marginLeft: 'auto'
+                                        }}>Editable</span>
+                                    </div>
+                                    <textarea
+                                        style={{
+                                            width: '100%', border: '1px solid #86efac', borderRadius: '6px',
+                                            padding: '8px', fontSize: '13px', resize: 'vertical',
+                                            backgroundColor: 'white', color: '#334155', lineHeight: '1.5',
+                                            minHeight: '60px', boxSizing: 'border-box', fontFamily: 'inherit'
+                                        }}
+                                        value={editForm.teacher_health_notes}
+                                        onChange={e => setEditForm({ ...editForm, teacher_health_notes: e.target.value })}
+                                        placeholder="Add your health observations here..."
+                                        rows={3}
                                     />
                                 </div>
-                            </div>
-                            <div className="ad-form-group">
-                                <label>Medical Conditions</label>
-                                <input
-                                    className="ad-input"
-                                    value={editForm.medical_conditions}
-                                    onChange={e => setEditForm({ ...editForm, medical_conditions: e.target.value })}
-                                    placeholder="e.g. Asthma, Diabetes"
-                                />
-                            </div>
-                            <div className="ad-form-group">
-                                <label>Medication</label>
-                                <input
-                                    className="ad-input"
-                                    value={editForm.medications}
-                                    onChange={e => setEditForm({ ...editForm, medications: e.target.value })}
-                                    placeholder="e.g. Inhaler, Insulin"
-                                />
-                            </div>
-                            <div className="ad-form-group">
-                                <label>Health Notes</label>
-                                <textarea
-                                    className="ad-input"
-                                    value={editForm.health_notes}
-                                    onChange={e => setEditForm({ ...editForm, health_notes: e.target.value })}
-                                    rows={3}
-                                    placeholder="Any recent health updates or concerns..."
-                                />
                             </div>
 
                             <div className="ad-form-actions">
                                 <button type="button" className="btn-secondary" onClick={() => setSelectedChild(null)}>Close</button>
-                                <button type="submit" className="btn-primary">Update Info</button>
+                                <button type="submit" className="btn-primary">💾 Save My Note</button>
                             </div>
                         </form>
                     </div>

@@ -129,6 +129,44 @@ app.get("/", (req, res) => {
   res.send("Backend is running ✅");
 });
 
+// Auto-migrate: add teacher_health_notes column and fee_settings table
+(async () => {
+  try {
+    await db.query(`ALTER TABLE child_health ADD COLUMN teacher_health_notes TEXT NULL AFTER health_notes`);
+    console.log("✅ Migration: teacher_health_notes column added to child_health");
+  } catch (e) {
+    if (e.code === 'ER_DUP_FIELDNAME') {
+      console.log("✅ teacher_health_notes column already exists");
+    } else {
+      console.error("Migration error:", e.message);
+    }
+  }
+
+  try {
+    await db.query(`CREATE TABLE IF NOT EXISTS fee_settings (
+        id INT PRIMARY KEY DEFAULT 1,
+        monthly_fee DECIMAL(10,2) NOT NULL DEFAULT 5000.00,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+    await db.query(`INSERT IGNORE INTO fee_settings (id, monthly_fee) VALUES (1, 5000.00)`);
+    console.log("✅ fee_settings table ready");
+  } catch (e) {
+    console.error("fee_settings migration error:", e.message);
+  }
+
+  // Add receipt_path column to payments if not exists
+  try {
+    await db.query(`ALTER TABLE payments ADD COLUMN receipt_path VARCHAR(255) NULL`);
+    console.log("✅ Migration: receipt_path column added to payments");
+  } catch (e) {
+    if (e.code === 'ER_DUP_FIELDNAME') {
+      console.log("✅ receipt_path column already exists");
+    } else {
+      console.error("receipt_path migration error:", e.message);
+    }
+  }
+})();
+
 // ✅ Improved DB test
 app.get("/test-db", async (req, res) => {
   try {
@@ -1131,7 +1169,7 @@ app.get("/api/children", authRequired, async (req, res) => {
         SELECT c.*, cl.name as className, 
                GROUP_CONCAT(u.name SEPARATOR ', ') as parentName, 
                GROUP_CONCAT(p.phone SEPARATOR ', ') as contactNumber,
-               ch.blood_type, ch.allergies, ch.medications, ch.health_notes, ch.medical_conditions,
+               ch.blood_type, ch.allergies, ch.medications, ch.health_notes, ch.teacher_health_notes, ch.medical_conditions,
                ch.updated_at as health_updated_at
         FROM children c
         LEFT JOIN classes cl ON c.class_id = cl.id
@@ -1171,7 +1209,7 @@ app.get("/api/children", authRequired, async (req, res) => {
                GROUP_CONCAT(u.name SEPARATOR ', ') as parentName, 
                GROUP_CONCAT(p.phone SEPARATOR ', ') as contactNumber, 
                GROUP_CONCAT(p.address SEPARATOR ' | ') as parentAddress,
-               ch.blood_type, ch.allergies, ch.medications, ch.health_notes, ch.medical_conditions,
+               ch.blood_type, ch.allergies, ch.medications, ch.health_notes, ch.teacher_health_notes, ch.medical_conditions,
                ch.updated_at as health_updated_at
         FROM children c
         LEFT JOIN classes cl ON c.class_id = cl.id
@@ -1291,7 +1329,7 @@ app.get("/api/children/:id", authRequired, async (req, res) => {
     const [rows] = await db.query(`
       SELECT c.*, cl.name as className, cl.teacher_id,
              u_t.name as teacherName,
-             ch.blood_type, ch.allergies, ch.medications, ch.health_notes, ch.medical_conditions
+             ch.blood_type, ch.allergies, ch.medications, ch.health_notes, ch.teacher_health_notes, ch.medical_conditions
       FROM children c
       LEFT JOIN classes cl ON c.class_id = cl.id
       LEFT JOIN teachers t ON cl.teacher_id = t.id
@@ -2286,27 +2324,40 @@ app.put("/api/children/:id/health-info", authRequired, async (req, res) => {
       } else {
         return res.status(403).json({ message: "Parent profile not found" });
       }
-    } else if (userRole !== "TEACHER") {
+    } else if (userRole !== "TEACHER" && userRole !== "ADMIN") {
       return res.status(403).json({ message: "Unauthorized. Health info can only be updated by Teachers or parents." });
     }
 
-    const { allergies, medications, health_notes, medical_conditions, blood_type } = req.body;
     console.log(`[HEALTH UPDATE] Child: ${childId}, Role: ${userRole}, Body:`, req.body);
 
-    await db.query(`
-      INSERT INTO child_health (child_id, allergies, medications, health_notes, medical_conditions, blood_type)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE 
-        allergies = ?,
-        medications = ?,
-        health_notes = ?,
-        medical_conditions = ?,
-        blood_type = ?,
-        updated_at = CURRENT_TIMESTAMP
-    `, [
-      childId, allergies || null, medications || null, health_notes || null, medical_conditions || null, blood_type || null,
-      allergies || null, medications || null, health_notes || null, medical_conditions || null, blood_type || null
-    ]);
+    if (userRole === "TEACHER") {
+      // Teachers can ONLY update teacher_health_notes (their own notes column)
+      const { teacher_health_notes } = req.body;
+      await db.query(`
+        INSERT INTO child_health (child_id, teacher_health_notes)
+        VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE 
+          teacher_health_notes = ?,
+          updated_at = CURRENT_TIMESTAMP
+      `, [childId, teacher_health_notes || null, teacher_health_notes || null]);
+    } else {
+      // Parents and Admins update all fields EXCEPT teacher_health_notes
+      const { allergies, medications, health_notes, medical_conditions, blood_type } = req.body;
+      await db.query(`
+        INSERT INTO child_health (child_id, allergies, medications, health_notes, medical_conditions, blood_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+          allergies = ?,
+          medications = ?,
+          health_notes = ?,
+          medical_conditions = ?,
+          blood_type = ?,
+          updated_at = CURRENT_TIMESTAMP
+      `, [
+        childId, allergies || null, medications || null, health_notes || null, medical_conditions || null, blood_type || null,
+        allergies || null, medications || null, health_notes || null, medical_conditions || null, blood_type || null
+      ]);
+    }
 
     res.json({ message: "Health information updated successfully" });
   } catch (err) {
@@ -2315,6 +2366,210 @@ app.put("/api/children/:id/health-info", authRequired, async (req, res) => {
       require('fs').appendFileSync('error_debug.log', `[${new Date().toISOString()}] HEALTH UPDATE ERROR: ${err.stack}\n`);
     } catch (e) { }
     res.status(500).json({ message: "Server error", detail: err.message });
+  }
+});
+
+
+/* =========================
+   FEE SETTINGS API
+========================= */
+app.get("/api/admin/fee-settings", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    const [rows] = await db.query("SELECT monthly_fee, updated_at FROM fee_settings WHERE id = 1");
+    res.json(rows[0] || { monthly_fee: 5000.00 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.put("/api/admin/fee-settings", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    const rawAmount = (req.body.monthly_fee || "5000").toString().replace(/\s/g, '');
+    const monthlyFee = parseFloat(rawAmount);
+    if (isNaN(monthlyFee) || monthlyFee <= 0) {
+      return res.status(400).json({ message: "Invalid fee amount" });
+    }
+
+    // Update the global fee
+    await db.query("INSERT INTO fee_settings (id, monthly_fee) VALUES (1, ?) ON DUPLICATE KEY UPDATE monthly_fee = ?", [monthlyFee, monthlyFee]);
+
+    // Update ALL pending (unpaid) payment records to use the new fee
+    await db.query("UPDATE payments SET amount = ? WHERE status = 'Pending'", [monthlyFee]);
+
+    res.json({ message: "Fee updated for all pending payments", monthly_fee: monthlyFee });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   PAYMENTS API 
+========================= */
+app.get("/api/admin/payments", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+
+    // Get the global default fee
+    const [feeRows] = await db.query("SELECT monthly_fee FROM fee_settings WHERE id = 1");
+    const defaultFee = feeRows.length > 0 ? parseFloat(feeRows[0].monthly_fee) : 5000.00;
+
+    // Fetch all children with their parents (aggregated) and their latest unpaid payments
+    const [rows] = await db.query(`
+      SELECT 
+        c.id as child_id, c.first_name, c.last_name,
+        GROUP_CONCAT(DISTINCT u.name SEPARATOR ', ') as parent_names,
+        MAX(cl.name) as class_name,
+        p.id as _pay_id, MAX(p.amount) as amount, MAX(p.payment_date) as payment_date, 
+        MAX(p.status) as status, MAX(p.payment_method) as payment_method, MAX(p.receipt_path) as receipt_path
+      FROM children c
+      LEFT JOIN parent_child pc ON c.id = pc.child_id
+      LEFT JOIN parents pr ON pc.parent_id = pr.id
+      LEFT JOIN users u ON pr.user_id = u.id
+      LEFT JOIN classes cl ON c.class_id = cl.id
+      LEFT JOIN payments p ON p.child_id = c.id AND p.status != 'Paid'
+      GROUP BY c.id, p.id
+      ORDER BY p.payment_date DESC, c.first_name ASC
+    `);
+
+    const formatted = rows.map(r => ({
+      id: r._pay_id ? "P" + r._pay_id.toString().padStart(3, '0') : "PENDING-" + r.child_id,
+      actual_pay_id: r._pay_id,
+      child_id: r.child_id,
+      parent: r.parent_names || "No Parent linked",
+      child: r.first_name + " " + r.last_name,
+      class: r.class_name || "Unassigned",
+      amount: r.amount || defaultFee,
+      date: r.payment_date ? new Date(r.payment_date).toISOString().split('T')[0] : "Not Paid",
+      status: r.status === 'Paid' ? 'Verified' : (r.status === 'Overdue' ? 'Failed' : 'Pending'),
+      type: r.payment_method || "Online",
+      receipt_url: r.receipt_path ? `http://localhost:5000/${r.receipt_path}` : null,
+      has_receipt: !!r.receipt_path
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error("GET /api/admin/payments error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.put("/api/admin/payments/:id/status", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    const { status, amount } = req.body; 
+    const dbStatus = status === "Verified" ? "Paid" : (status === "Failed" ? "Overdue" : "Pending");
+    
+    // Sanitize amount: remove spaces and parse
+    const rawAmount = (amount || "5000").toString().replace(/\s/g, '');
+    const payAmount = parseFloat(rawAmount) || 5000.00;
+    
+    if (req.params.id.startsWith("PENDING-")) {
+      const childId = req.params.id.split("-")[1];
+      const [pc] = await db.query("SELECT parent_id FROM parent_child WHERE child_id = ? LIMIT 1", [childId]);
+      
+      let parentId = null;
+      if (pc.length > 0) {
+        parentId = pc[0].parent_id;
+      }
+
+      const [result] = await db.query(
+        "INSERT INTO payments (parent_id, child_id, amount, payment_date, payment_method, status) VALUES (?, ?, ?, CURDATE(), 'Cash', ?)",
+        [parentId, childId, payAmount, dbStatus]
+      );
+      return res.json({ message: "Payment created and updated", actual_pay_id: result.insertId });
+    }
+
+    await db.query("UPDATE payments SET status = ?, amount = ? WHERE id = ?", [dbStatus, payAmount, req.params.id.replace('P', '')]);
+    res.json({ message: "Payment status and amount updated" });
+  } catch(err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/api/parent/payments", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "PARENT") return res.status(403).json({ message: "Parent only" });
+
+    const [parents] = await db.query("SELECT id FROM parents WHERE user_id = ?", [req.user.id]);
+    if (!parents.length) return res.status(404).json({ message: "Parent profile not found" });
+    const parentId = parents[0].id;
+
+    // Get default fee
+    const [feeRows] = await db.query("SELECT monthly_fee FROM fee_settings WHERE id = 1");
+    const defaultFee = feeRows.length > 0 ? feeRows[0].monthly_fee : 5000.00;
+
+    // Fetch children and their latest payment per child
+    const [rows] = await db.query(`
+      SELECT 
+        c.id as child_id, c.first_name, c.last_name,
+        p.id as payment_id, p.amount, p.payment_date, p.status, p.payment_method, p.receipt_path
+      FROM children c
+      JOIN parent_child pc ON c.id = pc.child_id
+      LEFT JOIN payments p ON p.child_id = c.id
+      WHERE pc.parent_id = ?
+      GROUP BY c.id
+      ORDER BY p.payment_date DESC, c.first_name ASC
+    `, [parentId]);
+
+    const result = rows.map(r => ({
+      ...r,
+      amount: r.amount || defaultFee,
+      receipt_url: r.receipt_path ? `http://localhost:5000/${r.receipt_path}` : null
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error("GET /api/parent/payments error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST: Parent submits a payment with receipt image
+app.post("/api/parent/payments/submit", authRequired, upload.single("receipt"), async (req, res) => {
+  try {
+    if (req.user.role !== "PARENT") return res.status(403).json({ message: "Parent only" });
+
+    const { child_id, amount, payment_date, payment_method } = req.body;
+    if (!child_id || !amount) return res.status(400).json({ message: "child_id and amount are required" });
+
+    const [parents] = await db.query("SELECT id FROM parents WHERE user_id = ?", [req.user.id]);
+    if (!parents.length) return res.status(404).json({ message: "Parent profile not found" });
+    const parentId = parents[0].id;
+
+    // Verify the child belongs to this parent
+    const [link] = await db.query("SELECT 1 FROM parent_child WHERE parent_id = ? AND child_id = ?", [parentId, child_id]);
+    if (!link.length) return res.status(403).json({ message: "Child not linked to this parent" });
+
+    const receiptPath = req.file ? `uploads/${req.file.filename}` : null;
+    const payDate = payment_date || new Date().toISOString().split('T')[0];
+    const method = payment_method || 'Bank Transfer';
+
+    // Check if there's an existing Pending payment for this child
+    const [existing] = await db.query("SELECT id FROM payments WHERE child_id = ? AND status = 'Pending' LIMIT 1", [child_id]);
+
+    if (existing.length > 0) {
+      // Update existing pending payment with receipt
+      await db.query(
+        "UPDATE payments SET amount = ?, payment_date = ?, payment_method = ?, receipt_path = ? WHERE id = ?",
+        [parseFloat(amount), payDate, method, receiptPath, existing[0].id]
+      );
+    } else {
+      // Create new payment record
+      await db.query(
+        "INSERT INTO payments (parent_id, child_id, amount, payment_date, payment_method, status, receipt_path) VALUES (?, ?, ?, ?, ?, 'Pending', ?)",
+        [parentId, child_id, parseFloat(amount), payDate, method, receiptPath]
+      );
+    }
+
+    res.json({ message: "Payment submitted successfully. Awaiting admin verification." });
+  } catch (err) {
+    console.error("POST /api/parent/payments/submit error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 

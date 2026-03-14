@@ -201,6 +201,7 @@ export default function ChildProfile() {
 
     const [behaviorReports, setBehaviorReports] = useState([]);
     const [homework, setHomework] = useState([]);
+    const [childPayment, setChildPayment] = useState(null);
 
     React.useEffect(() => {
         const fetchMealPlans = async () => {
@@ -243,10 +244,24 @@ export default function ChildProfile() {
             } catch (err) { console.error(err); }
         };
 
+        const fetchChildPayment = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const res = await fetch(`http://localhost:5000/api/parent/payments`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await res.json();
+                // Find payment for this specific child
+                const thisChildPay = data.find(p => p.child_id == id);
+                setChildPayment(thisChildPay);
+            } catch (err) { console.error(err); }
+        };
+
         fetchMealPlans();
         if (id) {
             fetchBehaviorReports();
             fetchHomework();
+            fetchChildPayment();
         }
     }, [id]);
 
@@ -272,7 +287,12 @@ export default function ChildProfile() {
                             <div style={{ width: '100%' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
                                     <span>Payment</span>
-                                    <span className="status-badge active">Paid</span>
+                                    <span style={{ 
+                                        fontWeight: 700, 
+                                        color: childPayment?.status === 'Paid' ? '#16a34a' : (childPayment?.status === 'Pending' ? '#b45309' : '#ef4444') 
+                                    }}>
+                                        {childPayment?.status === 'Paid' ? '✅ Paid' : (childPayment?.status === 'Pending' ? '⏳ Pending' : '⚠️ Due')}
+                                    </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
                                     <span>Health Alert</span>
@@ -336,12 +356,12 @@ export default function ChildProfile() {
 
                         {childData.allergies && childData.allergies !== "None" && (
                             <div style={{ padding: '20px', backgroundColor: '#fef2f2', borderLeft: '4px solid #ef4444', borderRadius: '8px', marginBottom: '20px' }}>
-                                <h4 style={{ color: '#991b1b', margin: '0 0 5px 0' }}>Allergy Alert</h4>
+                                <h4 style={{ color: '#991b1b', margin: '0 0 5px 0' }}>⚠️ Allergy Alert</h4>
                                 <p style={{ color: '#ef4444', margin: 0 }}><strong>{childData.allergies}</strong></p>
                             </div>
                         )}
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
                             <div className="ad-card" style={{ textAlign: 'left', alignItems: 'flex-start' }}>
                                 <h3>Medication & Conditions</h3>
                                 <p style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>Medication:</p>
@@ -351,9 +371,56 @@ export default function ChildProfile() {
                                 <p style={{ margin: 0 }}>{childData.medical_conditions || "None"}</p>
                             </div>
                             <div className="ad-card" style={{ textAlign: 'left', alignItems: 'flex-start' }}>
-                                <h3>Recent Health Notes (Concerns)</h3>
-                                <p style={{ color: '#334155', whiteSpace: 'pre-wrap' }}>{childData.health_notes || "No recent notes reported."}</p>
+                                <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#94a3b8' }}>Blood Type</p>
+                                <p style={{ margin: 0, fontWeight: 700, fontSize: '22px', color: '#0ea5e9' }}>{childData.blood_type || "—"}</p>
                             </div>
+                        </div>
+
+                        {/* DUAL NOTES — Parent & Teacher */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+
+                            {/* Parent's own notes */}
+                            <div style={{
+                                border: '2px solid #bfdbfe', borderRadius: '12px',
+                                padding: '16px', backgroundColor: '#eff6ff'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                    <span style={{ fontSize: '20px' }}>👨‍👩‍👧</span>
+                                    <div>
+                                        <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#1d4ed8' }}>Your Notes</p>
+                                        <p style={{ margin: 0, fontSize: '11px', color: '#93c5fd' }}>Added by Parent</p>
+                                    </div>
+                                </div>
+                                <p style={{
+                                    margin: 0, fontSize: '14px', color: childData.health_notes ? '#334155' : '#94a3b8',
+                                    whiteSpace: 'pre-wrap', lineHeight: '1.6',
+                                    fontStyle: childData.health_notes ? 'normal' : 'italic'
+                                }}>
+                                    {childData.health_notes || "You haven't added any health notes yet."}
+                                </p>
+                            </div>
+
+                            {/* Teacher's notes — READ ONLY for parent */}
+                            <div style={{
+                                border: '2px solid #bbf7d0', borderRadius: '12px',
+                                padding: '16px', backgroundColor: '#f0fdf4'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                    <span style={{ fontSize: '20px' }}>👩‍🏫</span>
+                                    <div>
+                                        <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#15803d' }}>Teacher's Notes</p>
+                                        <p style={{ margin: 0, fontSize: '11px', color: '#86efac' }}>Added by Teacher</p>
+                                    </div>
+                                </div>
+                                <p style={{
+                                    margin: 0, fontSize: '14px', color: childData.teacher_health_notes ? '#334155' : '#94a3b8',
+                                    whiteSpace: 'pre-wrap', lineHeight: '1.6',
+                                    fontStyle: childData.teacher_health_notes ? 'normal' : 'italic'
+                                }}>
+                                    {childData.teacher_health_notes || "No notes from teacher yet."}
+                                </p>
+                            </div>
+
                         </div>
                     </div>
                 );
@@ -643,39 +710,64 @@ export default function ChildProfile() {
                     </div>
                 );
             case "payments":
+                const getStatusBadge = (status) => {
+                    if (!status) return <span className="status-badge pending" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>Due</span>;
+                    switch (status) {
+                        case "Paid": return <span className="status-badge verified" style={{ backgroundColor: '#dcfce7', color: '#15803d' }}>✅ Paid</span>;
+                        case "Pending": return <span className="status-badge pending" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>⏳ Processing</span>;
+                        case "Overdue": return <span className="status-badge failed" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>❌ Overdue</span>;
+                        default: return <span className="status-badge">{status}</span>;
+                    }
+                };
+
                 return (
                     <div className="table-container">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h3>Payment History</h3>
-                            <button className="btn-primary" onClick={() => navigate("/parent/upload-receipt", { state: { child: childData } })}>Upload Receipt</button>
+                            <h3 style={{ margin: 0 }}>Monthly Payment Status</h3>
+                            {childPayment?.status !== "Paid" && (
+                                <button className="btn-primary" onClick={() => navigate("/parent/upload-receipt", { state: { child: childData } })}>Upload Receipt</button>
+                            )}
                         </div>
                         <table className="ad-table">
                             <thead>
                                 <tr>
-                                    <th>Month</th>
+                                    <th>Period</th>
                                     <th>Amount</th>
-                                    <th>Due Date</th>
+                                    <th>Status Date</th>
                                     <th>Status</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>January 2026</td>
-                                    <td>Rs. 15,000</td>
-                                    <td>10 Jan 2026</td>
-                                    <td><span className="status-badge pending">Due</span></td>
-                                    <td><button className="btn-primary btn-small" onClick={() => navigate("/parent/upload-receipt", { state: { child: childData } })}>Upload Receipt</button></td>
-                                </tr>
-                                <tr>
-                                    <td>December 2025</td>
-                                    <td>Rs. 15,000</td>
-                                    <td>10 Dec 2025</td>
-                                    <td><span className="status-badge active">Paid</span></td>
-                                    <td><button className="action-btn view">Invoice</button></td>
+                                    <td style={{ fontWeight: 600 }}>
+                                        {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
+                                    </td>
+                                    <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                                        Rs. {childPayment ? parseFloat(childPayment.amount).toLocaleString('en-LK', { minimumFractionDigits: 2 }) : "5,000.00"}
+                                    </td>
+                                    <td style={{ color: '#64748b' }}>
+                                        {childPayment?.payment_date ? new Date(childPayment.payment_date).toLocaleDateString() : "Pending"}
+                                    </td>
+                                    <td>{getStatusBadge(childPayment?.status)}</td>
+                                    <td>
+                                        {childPayment?.status === "Paid" ? (
+                                            <span style={{ color: '#16a34a', fontWeight: 700 }}>VERIFIED</span>
+                                        ) : (
+                                            <button 
+                                                className="btn-primary btn-small" 
+                                                onClick={() => navigate("/parent/upload-receipt", { state: { child: childData } })}
+                                            >
+                                                {childPayment?.status === "Pending" ? "Update Receipt" : "Upload Receipt"}
+                                            </button>
+                                        )}
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
+                        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '13px', color: '#64748b', border: '1px solid #e2e8f0' }}>
+                            <p style={{ margin: 0 }}><strong>Note:</strong> Monthly fees are set globally by the administration. Any change in the school's fee structure will be reflected here automatically.</p>
+                        </div>
                     </div>
                 );
 
