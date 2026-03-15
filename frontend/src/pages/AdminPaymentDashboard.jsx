@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Icons } from "../components/Icons";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const AdminPaymentDashboard = () => {
     const navigate = useNavigate();
+    const { selectedYearId } = useOutletContext();
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("All");
     const [selectedPayment, setSelectedPayment] = useState(null);
@@ -66,12 +67,11 @@ const AdminPaymentDashboard = () => {
         }
     };
 
-    const fetchPayments = async (month, year) => {
+    const fetchPayments = async () => {
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
-            const params = month && year ? `?month=${month}&year=${year}` : '';
-            const res = await fetch(`http://localhost:5000/api/admin/payments${params}`, {
+            const res = await fetch(`http://localhost:5000/api/admin/payments?month=${selectedMonth}&year=${selectedYear}&yearId=${selectedYearId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = await res.json();
@@ -84,9 +84,11 @@ const AdminPaymentDashboard = () => {
     };
 
     useEffect(() => {
-        fetchPayments(selectedMonth, selectedYear);
-        fetchFee();
-    }, [selectedMonth, selectedYear]);
+        if (selectedYearId) {
+            fetchFee();
+            fetchPayments();
+        }
+    }, [selectedYearId, selectedMonth, selectedYear]);
 
     // Filtering
     const filteredPayments = payments.filter(payment => {

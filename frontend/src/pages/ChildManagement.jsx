@@ -1,9 +1,10 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Icons } from "../components/Icons";
 
 const ChildManagement = () => {
   const navigate = useNavigate();
+  const { selectedYearId } = useOutletContext();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -17,21 +18,24 @@ const ChildManagement = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [activeChildForQR, setActiveChildForQR] = useState(null);
 
-  React.useEffect(() => {
-    fetchChildren();
-  }, []);
+  useEffect(() => {
+    if (selectedYearId) {
+      fetchChildren();
+    }
+  }, [selectedYearId]);
 
   const fetchChildren = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:5000/api/children", {
+      const res = await fetch(`http://localhost:5000/api/children?yearId=${selectedYearId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setChildren(Array.isArray(data) ? data : []);
 
     } catch (err) {
-      console.error(err);
+      console.error("Fetch children error:", err);
     } finally {
       setLoading(false);
     }
@@ -84,6 +88,9 @@ const ChildManagement = () => {
       });
       if (birthCertificate) {
         data.append("birthCertificate", birthCertificate);
+      }
+      if (selectedYearId) {
+        data.append("academic_year_id", selectedYearId);
       }
 
       const res = await fetch(url, {

@@ -19,6 +19,7 @@ async function initDB() {
                 qr_code VARCHAR(255) UNIQUE,
                 birth_certificate VARCHAR(255),
                 profile_picture VARCHAR(255),
+                academic_year_id INT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -31,6 +32,7 @@ async function initDB() {
         if (!childColNames.includes('qr_code')) await db.query("ALTER TABLE children ADD COLUMN qr_code VARCHAR(255) UNIQUE");
         if (!childColNames.includes('birth_certificate')) await db.query("ALTER TABLE children ADD COLUMN birth_certificate VARCHAR(255)");
         if (!childColNames.includes('profile_picture')) await db.query("ALTER TABLE children ADD COLUMN profile_picture VARCHAR(255)");
+        if (!childColNames.includes('academic_year_id')) await db.query("ALTER TABLE children ADD COLUMN academic_year_id INT");
 
         // 2. Teachers Table (Standardized contact -> phone)
         await db.query(`
@@ -189,9 +191,12 @@ async function initDB() {
         await db.query(`
             CREATE TABLE IF NOT EXISTS notifications (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                type VARCHAR(50), 
-                audience ENUM('Global', 'Parents', 'Teachers', 'Both') DEFAULT 'Global',
+                type VARCHAR(100), 
+                audience VARCHAR(100) DEFAULT 'Global',
                 message TEXT NOT NULL,
+                target_user_id INT NULL,
+                target_class_id INT NULL,
+                is_read TINYINT(1) DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);

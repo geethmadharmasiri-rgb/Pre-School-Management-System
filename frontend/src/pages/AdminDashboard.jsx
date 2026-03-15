@@ -1,35 +1,18 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Icons } from "../components/Icons";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [counts, setCounts] = React.useState({ totalChildren: 0, totalTeachers: 0, totalClasses: 0 });
-  const [years, setYears] = React.useState([]);
-  const [selectedYear, setSelectedYear] = React.useState("");
+  const { selectedYearId } = useOutletContext();
+  const [counts, setCounts] = useState({ totalChildren: 0, totalTeachers: 0, totalClasses: 0 });
 
-  React.useEffect(() => {
-    const fetchYears = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:5000/api/admin/academic-years", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
-        setYears(data);
-        const current = data.find(y => y.is_active) || data[0];
-        if (current) setSelectedYear(current.id);
-      } catch (err) { console.error(err); }
-    };
-    fetchYears();
-  }, []);
-
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchStats = async () => {
-      if (!selectedYear) return;
+      if (!selectedYearId) return;
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch(`http://localhost:5000/api/admin/stats?yearId=${selectedYear}`, {
+        const res = await fetch(`http://localhost:5000/api/admin/stats?yearId=${selectedYearId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
@@ -39,7 +22,7 @@ const AdminDashboard = () => {
       }
     };
     fetchStats();
-  }, [selectedYear]);
+  }, [selectedYearId]);
 
   // Mock Data for Dashboard
   const stats = [
@@ -69,16 +52,6 @@ const AdminDashboard = () => {
           <p className="ad-header-subtitle">Welcome back, Administrator</p>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <select
-            className="ad-select"
-            style={{ width: 'auto', fontWeight: 600 }}
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-          >
-            {years.map(y => (
-              <option key={y.id} value={y.id}>{y.year_name} {y.is_active ? '(Current)' : ''}</option>
-            ))}
-          </select>
           <div className="notification">{Icons.bell}</div>
         </div>
       </header>

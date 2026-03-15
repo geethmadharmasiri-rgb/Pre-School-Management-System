@@ -11,6 +11,7 @@ const ParentDashboard = () => {
   const [contactData, setContactData] = useState({ phone: "", address: "" });
   const [userName, setUserName] = useState("Parent");
   const [events, setEvents] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     const userStr = localStorage.getItem("user");
@@ -22,7 +23,21 @@ const ParentDashboard = () => {
     }
     fetchChildren();
     fetchEvents();
+    fetchNotifications();
   }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/notifications", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) setNotifications(data.slice(0, 3));
+    } catch (err) {
+      console.error("Dashboard notifications fetch error:", err);
+    }
+  };
 
   const fetchEvents = async () => {
     try {
@@ -124,7 +139,7 @@ const ParentDashboard = () => {
           </div>
           <div>
             <h3 style={{ fontSize: '14px', color: '#64748b', fontWeight: 500, margin: '0 0 4px 0' }}>Notifications</h3>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>3</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>{notifications.filter(n => !n.is_read).length}</div>
           </div>
         </div>
       </div>
@@ -251,13 +266,22 @@ const ParentDashboard = () => {
             </div>
           </div>
 
-          <div className="ad-card" style={{ textAlign: 'left', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate('/parent/notifications')}>
+          <div className="ad-card" style={{ textAlign: 'left', alignItems: 'flex-start' }} onClick={() => navigate('/parent/notifications')}>
             <h3 style={{ marginBottom: '15px' }}>Recent Notifications</h3>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '15px' }}>
-              <div style={{ backgroundColor: '#f1f5f9', padding: '8px', borderRadius: '8px' }}>{Icons.bell}</div>
-              <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>You have information regarding the upcoming semester activities.</p>
+            <div style={{ width: '100%', marginBottom: '15px' }}>
+              {notifications.length > 0 ? notifications.map((n, i) => (
+                <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '12px', borderBottom: i < notifications.length - 1 ? '1px solid #f1f5f9' : 'none', paddingBottom: '8px' }}>
+                  <div style={{ backgroundColor: n.is_read ? '#f1f5f9' : '#eff6ff', padding: '6px', borderRadius: '8px', color: n.is_read ? '#64748b' : '#3b82f6' }}>{Icons.bell}</div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '12px', color: n.is_read ? '#64748b' : '#1e293b', margin: 0, fontWeight: n.is_read ? 400 : 600 }}>{n.message}</p>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{new Date(n.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              )) : (
+                <p style={{ fontSize: '13px', color: '#64748b' }}>No recent updates.</p>
+              )}
             </div>
-            <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>View All</button>
+            <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => navigate('/parent/notifications')}>View All</button>
           </div>
         </div>
       </div>

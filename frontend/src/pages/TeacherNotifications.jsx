@@ -1,34 +1,86 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Icons } from "../components/Icons";
 
 const TeacherNotifications = () => {
-    const [notifications] = useState([
-        { id: 1, type: "Announcement", message: "Reminder: Staff meeting tomorrow at 3 PM in the lounge.", time: "1 hour ago" },
-        { id: 2, type: "Maintenance", message: "School Wi-Fi will be down for maintenance from 6 PM to 8 PM tonight.", time: "5 hours ago" },
-        { id: 3, type: "Event", message: "The 'Art Exhibition' photos are now available in the gallery.", time: "1 day ago" },
-    ]);
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchNotifications();
+    }, []);
+
+    const fetchNotifications = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch("http://localhost:5000/api/notifications", {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (Array.isArray(data)) setNotifications(data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const markAsRead = async (id) => {
+        try {
+            const token = localStorage.getItem("token");
+            await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+                method: "PUT",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: 1 } : n));
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     return (
         <div>
             <header className="ad-header">
                 <div>
-                    <h1>Teacher Notifications</h1>
-                    <p className="ad-header-subtitle">Important announcements and system alerts</p>
+                    <h1>Staff Notifications</h1>
+                    <p className="ad-header-subtitle">Stay updated with school alerts and management updates</p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="btn-secondary" onClick={() => {
+                         const token = localStorage.getItem("token");
+                         fetch("http://localhost:5000/api/notifications/mark-all-read", {
+                             method: "PUT",
+                             headers: { Authorization: `Bearer ${token}` }
+                         }).then(() => fetchNotifications());
+                    }}>Mark all read</button>
                 </div>
             </header>
 
-            <div className="ad-card" style={{ marginTop: '24px', textAlign: 'left', alignItems: 'flex-start' }}>
+            <div className="ad-card" style={{ marginTop: '24px', textAlign: 'left', alignItems: 'flex-start', minHeight: '400px' }}>
                 <div style={{ width: '100%' }}>
-                    {notifications.length === 0 ? (
-                        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No notifications</div>
+                    {loading ? (
+                        <div style={{ padding: '40px', textAlign: 'center' }}>Loading staff updates...</div>
+                    ) : notifications.length === 0 ? (
+                        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No notifications found</div>
                     ) : (
                         notifications.map((n, i) => (
-                            <div key={n.id} style={{ padding: '20px', borderBottom: i === notifications.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+                            <div key={n.id} style={{ 
+                                padding: '20px', 
+                                borderBottom: i === notifications.length - 1 ? 'none' : '1px solid #f1f5f9',
+                                backgroundColor: n.is_read ? 'transparent' : '#f8f9ff'
+                            }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <h4 style={{ margin: 0, color: '#0f172a' }}>{n.type}</h4>
-                                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>{n.time}</span>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        {!n.is_read && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#0284c7' }}></div>}
+                                        <h4 style={{ margin: 0, color: '#0f172a' }}>{n.type}</h4>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(n.created_at).toLocaleString()}</span>
+                                        {!n.is_read && (
+                                            <button onClick={() => markAsRead(n.id)} style={{ background: 'none', border: 'none', color: '#0284c7', fontSize: '12px', cursor: 'pointer' }}>Mark Read</button>
+                                        )}
+                                    </div>
                                 </div>
-                                <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>{n.message}</p>
+                                <p style={{ margin: 0, fontSize: '14px', color: n.is_read ? '#64748b' : '#334155' }}>{n.message}</p>
                             </div>
                         ))
                     )}

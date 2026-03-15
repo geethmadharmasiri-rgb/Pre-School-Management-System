@@ -7,8 +7,10 @@ export default function TeacherDashboard() {
   const { selectedYearId } = useOutletContext();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
+    fetchNotifications();
     const fetchProfile = async () => {
       if (!selectedYearId) return;
       try {
@@ -31,6 +33,19 @@ export default function TeacherDashboard() {
     };
     fetchProfile();
   }, [navigate, selectedYearId]);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/notifications", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) setNotifications(data.slice(0, 5));
+    } catch (err) {
+      console.error("Teacher notifications fetch error:", err);
+    }
+  };
 
   const stats = [
     {
@@ -187,24 +202,35 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: RECENT ACTIVITY */}
+        {/* RIGHT COLUMN: RECENT ACTIVITY (Notifications) */}
         <div className="ad-card" style={{ padding: '32px', borderRadius: '24px' }}>
           <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px', color: '#0f172a' }}>Recent Activity</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {recentActivities.map(activity => (
-              <div key={activity.id} style={{ display: 'flex', gap: '16px', padding: '12px', borderRadius: '16px', transition: 'background 0.2s' }}>
+            {notifications.length > 0 ? notifications.map(n => (
+              <div key={n.id} style={{ display: 'flex', gap: '16px', padding: '12px', borderRadius: '16px', transition: 'background 0.2s', backgroundColor: n.is_read ? 'transparent' : '#f0f9ff' }}>
                 <div style={{
-                  width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#f1f5f9',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px'
+                  width: '44px', height: '44px', borderRadius: '12px', backgroundColor: n.is_read ? '#f1f5f9' : '#e0f2fe',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: n.is_read ? '#64748b' : '#0284c7'
                 }}>
-                  {activity.type === 'attendance' ? '📝' : activity.type === 'homework' ? '📚' : '✍️'}
+                  {n.type === 'Attendance' ? '📝' : n.type === 'Homework' ? '📚' : n.type === 'Behavior Report' ? '✍️' : '🔔'}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 2px 0', fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>{activity.text}</p>
-                  <span style={{ fontSize: '13px', color: '#94a3b8' }}>{activity.time}</span>
+                  <p style={{ margin: '0 0 2px 0', fontSize: '14px', fontWeight: n.is_read ? 500 : 700, color: '#1e293b' }}>{n.message}</p>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(n.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p style={{ color: '#64748b', fontSize: '14px' }}>No recent activity found.</p>
+            )}
+            {notifications.length > 0 && (
+              <button 
+                className="btn-secondary" 
+                style={{ marginTop: '12px', width: '100%', justifyContent: 'center' }}
+                onClick={() => navigate('/teacher/notifications')}
+              >
+                View Notification Center
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Icons } from "../components/Icons";
 // import "./AddChild.css"; // Removed custom CSS
 
 export default function AddChild() {
   const navigate = useNavigate();
+  const { selectedYearId } = useOutletContext();
 
   // ==================== STATE MANAGEMENT ====================
   const [parentMode, setParentMode] = useState("new");
@@ -150,6 +151,9 @@ export default function AddChild() {
       const formData = new FormData();
       formData.append("child", JSON.stringify(child));
       formData.append("parents", JSON.stringify(parentsArray));
+      if (selectedYearId) {
+        formData.append("academicYearId", selectedYearId);
+      }
       if (birthCertificate) {
         formData.append("birthCertificate", birthCertificate);
       }

@@ -6,6 +6,8 @@ const AdminAcademicYears = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [yearName, setYearName] = useState("");
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
     const [isActive, setIsActive] = useState(false);
 
     const fetchYears = async () => {
@@ -37,10 +39,17 @@ const AdminAcademicYears = () => {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ year_name: yearName, is_active: isActive }),
+                body: JSON.stringify({ 
+                    year_name: yearName, 
+                    start_date: startDate,
+                    end_date: endDate,
+                    is_active: isActive 
+                }),
             });
             if (res.ok) {
                 setYearName("");
+                setStartDate("");
+                setEndDate("");
                 setIsActive(false);
                 setShowModal(false);
                 fetchYears();
@@ -164,6 +173,28 @@ const AdminAcademicYears = () => {
                                     onChange={(e) => setYearName(e.target.value)}
                                     required
                                 />
+                            </div>
+                            <div className="ad-form-row">
+                                <div className="ad-form-group">
+                                    <label>Start Date</label>
+                                    <input
+                                        type="date"
+                                        className="ad-input"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <div className="ad-form-group">
+                                    <label>End Date</label>
+                                    <input
+                                        type="date"
+                                        className="ad-input"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        required
+                                    />
+                                </div>
                             </div>
                             <div className="ad-form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
                                 <input
