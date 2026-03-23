@@ -205,7 +205,13 @@ export default function ChildProfile() {
     const [paymentHistory, setPaymentHistory] = useState([]);
     const [globalFee, setGlobalFee] = useState(5000);
 
+    const [submitting, setSubmitting] = useState(null);
+    const [submissionText, setSubmissionText] = useState("");
+    const [submissionFile, setSubmissionFile] = useState(null);
+    const [viewingFeedback, setViewingFeedback] = useState(null);
+
     React.useEffect(() => {
+
         const fetchMealPlans = async () => {
             try {
                 const res = await fetch("http://localhost:5000/api/meal-plans");
@@ -285,6 +291,50 @@ export default function ChildProfile() {
             fetchGlobalFee();
         }
     }, [id]);
+
+    const handleSubmission = async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append("homeworkId", submitting.id);
+        formData.append("studentId", id);
+        formData.append("submissionText", submissionText);
+        if (submissionFile) {
+            formData.append("submissionFile", submissionFile);
+        }
+
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch("http://localhost:5000/api/homework/submit", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` },
+                body: formData
+            });
+            if (response.ok) {
+                alert("Homework submitted successfully!");
+                setSubmitting(null);
+                setSubmissionText("");
+                setSubmissionFile(null);
+                // fetchHomework() is defined in useEffect, I should pull it out or rely on it being available
+                const fetchHw = async () => {
+                   const token = localStorage.getItem("token");
+                   const res = await fetch(`http://localhost:5000/api/children/${id}/homework`, {
+                       headers: { Authorization: `Bearer ${token}` },
+                       cache: 'no-store'
+                   });
+                   const data = await res.json();
+                   setHomework(Array.isArray(data) ? data : []);
+                };
+                fetchHw();
+            } else {
+                const data = await response.json();
+                alert(data.message || "Failed to submit homework");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error submitting homework");
+        }
+    };
+
 
     const renderContent = () => {
         switch (activeTab) {
@@ -545,46 +595,163 @@ export default function ChildProfile() {
                         <table className="ad-table">
                             <thead>
                                 <tr>
-                                    <th>Date</th>
-                                    <th>Subject</th>
-                                    <th>Activity</th>
-                                    <th>Teacher</th>
+                                    <th>Due Date</th>
+                                    <th>Subject & Activity</th>
+                                    <th>Status</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {homework.map((hw, i) => (
                                     <tr key={i}>
-                                        <td>{new Date(hw.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
-                                        <td style={{ fontWeight: 600 }}>{hw.title}</td>
-                                        <td>{hw.description}</td>
-                                        <td style={{ fontSize: '13px', color: '#64748b' }}>{hw.teacherName || 'Assigned'}</td>
                                         <td>
-                                            {hw.file_path ? (
-                                                <a
-                                                    href={`http://localhost:5000/${hw.file_path}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="btn-primary btn-small"
-                                                    style={{ textDecoration: 'none', display: 'inline-block' }}
-                                                >
-                                                    View Material
-                                                </a>
-                                            ) : (
-                                                <span style={{ fontSize: '12px', color: '#94a3b8 italic' }}>No materials</span>
+                                            <div style={{ fontWeight: 600 }}>{new Date(hw.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                                            <div style={{ fontSize: '11px', color: '#ef4444' }}>Due by EOD</div>
+                                        </td>
+                                        <td>
+                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{hw.title}</div>
+                                            <div style={{ fontSize: '13px', color: '#64748b' }}>{hw.description}</div>
+                                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Teacher: {hw.teacherName || 'Assigned'}</div>
+                                        </td>
+                                        <td>
+                                            <span style={{
+                                                padding: '4px 10px',
+                                                borderRadius: '20px',
+                                                fontSize: '12px',
+                                                fontWeight: '600',
+                                                background: (hw.submission_status === 'Reviewed' ? '#dcfce7' : hw.submission_status === 'Late' ? '#fee2e2' : hw.submission_status === 'Submitted' ? '#e0f2fe' : '#f1f5f9'),
+                                                color: (hw.submission_status === 'Reviewed' ? '#166534' : hw.submission_status === 'Late' ? '#991b1b' : hw.submission_status === 'Submitted' ? '#075985' : '#475569')
+                                            }}>
+                                                {hw.submission_status || "Pending"}
+                                            </span>
+                                            {hw.submission_status === 'Reviewed' && (
+                                                <div style={{ marginTop: '5px' }}>
+                                                    <button 
+                                                        onClick={() => setViewingFeedback(hw)}
+                                                        style={{ background: 'none', border: 'none', color: '#0ea5e9', fontSize: '12px', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+                                                    >
+                                                        View Feedback
+                                                    </button>
+                                                </div>
                                             )}
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {hw.file_path && (
+                                                    <a
+                                                        href={`http://localhost:5000/${hw.file_path}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="btn-secondary btn-small"
+                                                        style={{ textDecoration: 'none', textAlign: 'center', fontSize: '12px' }}
+                                                    >
+                                                        View Material
+                                                    </a>
+                                                )}
+                                                <button 
+                                                    className="btn-primary btn-small" 
+                                                    style={{ fontSize: '12px' }}
+                                                    onClick={() => {
+                                                        setSubmitting(hw);
+                                                        setSubmissionText(hw.submission_text || "");
+                                                    }}
+                                                >
+                                                    {hw.submission_id ? "Edit Submission" : "Submit Homework"}
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
                                 {homework.length === 0 && (
                                     <tr>
-                                        <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                                        <td colSpan="4" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                                             No homework assigned yet.
                                         </td>
                                     </tr>
                                 )}
                             </tbody>
                         </table>
+
+                        {/* Submission Modal */}
+                        {submitting && (
+                            <div style={{
+                                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                                background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+                            }}>
+                                <div className="ad-form-card" style={{ maxWidth: '500px', width: '90%' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                        <h2 style={{ margin: 0 }}>Submit Homework</h2>
+                                        <button onClick={() => setSubmitting(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>×</button>
+                                    </div>
+                                    <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>
+                                        Submission for: <strong>{submitting.title}</strong>
+                                    </p>
+                                    <form onSubmit={handleSubmission}>
+                                        <div className="ad-form-group">
+                                            <label>Text Answer / Notes</label>
+                                            <textarea 
+                                                className="ad-input" 
+                                                rows="4" 
+                                                value={submissionText} 
+                                                onChange={e => setSubmissionText(e.target.value)}
+                                                placeholder="Enter your answer or notes here..."
+                                            ></textarea>
+                                        </div>
+                                        <div className="ad-form-group">
+                                            <label>Upload File (Image/PDF)</label>
+                                            <input 
+                                                type="file" 
+                                                className="ad-input" 
+                                                onChange={e => setSubmissionFile(e.target.files[0])}
+                                                accept="image/*,.pdf"
+                                            />
+                                            {submitting.submission_file_path && !submissionFile && (
+                                                <p style={{ fontSize: '12px', color: '#0ea5e9', marginTop: '5px' }}>
+                                                    📎 Current file: {submitting.submission_file_path.split('/').pop()}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="ad-form-actions">
+                                            <button type="button" className="btn-secondary" onClick={() => setSubmitting(null)}>Cancel</button>
+                                            <button type="submit" className="btn-primary">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Feedback Modal */}
+                        {viewingFeedback && (
+                            <div style={{
+                                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                                background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+                                backdropFilter: 'blur(4px)'
+                            }}>
+                                <div className="ad-card" style={{ maxWidth: '450px', width: '90%', textAlign: 'left', padding: '30px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', width: '100%' }}>
+                                        <h2 style={{ margin: 0, fontSize: '20px', color: '#0f172a' }}>Teacher Feedback</h2>
+                                        <button onClick={() => setViewingFeedback(null)} style={{ background: '#f1f5f9', border: 'none', fontSize: '20px', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                                    </div>
+                                    <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', borderLeft: '5px solid #10b981', width: '100%', marginBottom: '25px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                                        <div style={{ marginBottom: '15px' }}>
+                                            <label style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Marks / Grade</label>
+                                            <div style={{ fontWeight: 800, fontSize: '28px', color: '#0ea5e9', marginTop: '5px' }}>{viewingFeedback.marks || "Not Graded"}</div>
+                                        </div>
+                                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                                            <label style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Teacher's Note</label>
+                                            <p style={{ margin: '8px 0 0 0', color: '#334155', fontStyle: 'italic', lineHeight: '1.6', fontSize: '15px' }}>"{viewingFeedback.feedback || "No specific feedback provided."}"</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        className="btn-primary" 
+                                        style={{ width: '100%', padding: '14px', borderRadius: '10px', fontSize: '16px' }}
+                                        onClick={() => setViewingFeedback(null)}
+                                    >
+                                        Close Feedback
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             case "meal":

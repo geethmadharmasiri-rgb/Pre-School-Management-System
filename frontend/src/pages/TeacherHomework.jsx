@@ -127,7 +127,17 @@ export default function TeacherHomework() {
                                         </a>
                                     </div>
                                 )}
+                                <div style={{ marginTop: '15px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                                    <button 
+                                        className="btn-secondary" 
+                                        style={{ width: '100%', fontSize: '14px', background: '#f8fafc', fontWeight: '600' }}
+                                        onClick={() => navigate(`/teacher/homework/tracking/${hw.id}`)}
+                                    >
+                                        Track Submissions & Review
+                                    </button>
                                 </div>
+                                </div>
+
                         ))
                     )}
                 </div>

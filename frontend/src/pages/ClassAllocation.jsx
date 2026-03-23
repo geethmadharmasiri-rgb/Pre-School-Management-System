@@ -1,7 +1,7 @@
-
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../components/Icons";
+import "./ClassAllocation.css";
 
 export default function ClassAllocation() {
   const navigate = useNavigate();
@@ -125,12 +125,10 @@ export default function ClassAllocation() {
     } catch (err) { console.error(err); }
   };
 
-  // Updated: Allow removing a child from ANY class, not just the selected one
+  // Allow removing a child from ANY class, not just the selected one
   const handleToggleChild = async (childId, targetClassId) => {
     try {
       const token = localStorage.getItem("token");
-      console.log(`DEBUG: Target class for child ${childId} is ${targetClassId}`);
-
       const res = await fetch(`http://localhost:5000/api/admin/children/${childId}/assign-class`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -157,7 +155,7 @@ export default function ClassAllocation() {
 
     // Use loose equality == to handle string vs number IDs
     if (filterType === 'unassigned') return !ch.class_id;
-    // Updated: 'assigned' now shows both class members AND unassigned children for easy allocation
+    // 'assigned' now shows both class members AND unassigned children for easy allocation
     if (filterType === 'assigned') return ch.class_id == selectedClassId || !ch.class_id;
     return true; // 'all'
   }).sort((a, b) => {
@@ -189,12 +187,12 @@ export default function ClassAllocation() {
           <h1>Class Allocation</h1>
           <p className="ad-header-subtitle">Assign children to classes and manage settings</p>
         </div>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#64748b' }}>Academic Year:</span>
+        <div className="ca-top-controls">
+          <div className="ca-year-selector">
+            <span>Academic Year:</span>
             <select
               className="ad-select"
-              style={{ width: 'auto', padding: '8px 12px', fontWeight: 600 }}
+              style={{ border: 'none', background: 'transparent', padding: '0', fontWeight: 700, outline: 'none', cursor: 'pointer', color: '#0f172a' }}
               value={selectedYearId}
               onChange={(e) => setSelectedYearId(Number(e.target.value))}
             >
@@ -206,20 +204,20 @@ export default function ClassAllocation() {
             </select>
             <button
               className="btn-secondary"
-              style={{ padding: '8px 12px', fontSize: '13px' }}
+              style={{ padding: '6px 12px', fontSize: '13px' }}
               onClick={() => navigate('/admin/academic-years')}
             >
               Manage
             </button>
           </div>
-          <button className="btn-primary" onClick={() => setShowAddModal(true)}>
-            {Icons.plus} Add New Class
+          <button className="btn-primary" onClick={() => setShowAddModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ display: 'flex', alignItems: 'center', width: '18px' }}>{Icons.plus}</span> Add New Class
           </button>
         </div>
       </header>
 
       {/* COMPACT CLASS SELECTOR BAR */}
-      <div style={{ display: 'flex', gap: '12px', margin: '24px 0', overflowX: 'auto', paddingBottom: '12px' }}>
+      <div className="ca-class-grid">
         {classes.map(c => {
           const isActive = selectedClassId === c.id;
           const fillPercent = Math.min(100, Math.round((c.childIds.length / c.capacity) * 100));
@@ -227,49 +225,44 @@ export default function ClassAllocation() {
             <div
               key={c.id}
               onClick={() => handleClassSelect(c)}
-              className="ad-card"
-              style={{
-                minWidth: '200px', cursor: 'pointer',
-                borderColor: isActive ? 'var(--ad-accent)' : 'transparent',
-                backgroundColor: isActive ? '#f0fdfa' : 'white',
-                padding: '16px'
-              }}
+              className={`ca-class-card ${isActive ? 'active' : ''}`}
             >
-              <div style={{ fontWeight: 600, fontSize: '15px', color: isActive ? 'var(--ad-accent)' : 'inherit' }}>{c.name}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{c.childIds.length} / {c.capacity} Children</div>
-              <div style={{ height: '4px', background: '#e2e8f0', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${fillPercent}%`, background: isActive ? 'var(--ad-accent)' : '#94a3b8' }}></div>
+              <div className="ca-class-name">{c.name}</div>
+              <div className="ca-class-capacity">{c.childIds.length} / {c.capacity} Children</div>
+              <div className="ca-progress-bg">
+                <div className="ca-progress-fill" style={{ width: `${fillPercent}%` }}></div>
               </div>
             </div>
           );
         })}
         {classes.length === 0 && (
-          <div style={{ padding: '20px', color: '#94a3b8', fontStyle: 'italic' }}>No classes found in this academic year. Create one to get started.</div>
+          <div style={{ padding: '20px', color: '#94a3b8', fontStyle: 'italic', gridColumn: '1 / -1' }}>
+            No classes found in this academic year. Create one to get started.
+          </div>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '24px', alignItems: 'start' }}>
-
+      <div className="ca-panels-wrapper">
         {/* LEFT COLUMN: CLASS SETTINGS */}
-        <div className="ad-card" style={{ position: 'sticky', top: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0 }}>Class Settings</h3>
+        <div className="ca-settings-panel">
+          <div className="ca-panel-header">
+            <h3>Class Settings</h3>
             {selectedClass && (
-              <button onClick={handleDeleteClass} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}>
+              <button onClick={handleDeleteClass} className="ca-delete-btn" title="Delete Class">
                 Delete Class
               </button>
             )}
           </div>
 
           {!selectedClass ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>Select a class to manage</div>
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8' }}>Select a class to manage</div>
           ) : (
             <form onSubmit={handleUpdateClass}>
-              <div className="ad-form-group">
+              <div className="ca-form-group">
                 <label>Class Name</label>
                 <input className="ad-input" value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })} required />
               </div>
-              <div className="ad-form-group">
+              <div className="ca-form-group">
                 <label>Assigned Teacher</label>
                 <select className="ad-select" value={classForm.teacher_id} onChange={e => setClassForm({ ...classForm, teacher_id: e.target.value })}>
                   <option value="">No Teacher Assigned</option>
@@ -278,15 +271,15 @@ export default function ClassAllocation() {
                   ))}
                 </select>
               </div>
-              <div className="ad-form-group">
+              <div className="ca-form-group">
                 <label>Class Capacity</label>
                 <input type="number" className="ad-input" value={classForm.capacity} onChange={e => setClassForm({ ...classForm, capacity: Number(e.target.value) })} min="1" required />
               </div>
 
-              <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                <div style={{ fontSize: '13px', color: '#64748b' }}>Current Occupancy</div>
-                <div style={{ fontSize: '28px', fontWeight: 700, margin: '4px 0' }}>{Math.round((selectedClass.childIds.length / selectedClass.capacity) * 100)}%</div>
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{selectedClass.childIds.length} of {selectedClass.capacity} seats filled</div>
+              <div className="ca-settings-occupancy">
+                <div className="occ-title">Current Occupancy</div>
+                <div className="occ-value">{Math.round((selectedClass.childIds.length / selectedClass.capacity) * 100)}%</div>
+                <div className="occ-desc">{selectedClass.childIds.length} of {selectedClass.capacity} seats filled</div>
               </div>
 
               <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '24px' }}>Save Changes</button>
@@ -295,34 +288,31 @@ export default function ClassAllocation() {
         </div>
 
         {/* RIGHT COLUMN: CHILD MANAGEMENT */}
-        <div className="ad-card" style={{ minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h3 style={{ margin: 0 }}>Enrollment Management</h3>
+        <div className="ca-enrollment-panel">
+          <div className="ca-panel-header">
+            <h3>Enrollment Management</h3>
+          </div>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: '#64748b' }}>Show:</span>
-              <select className="ad-select" style={{ width: 'auto', padding: '6px 12px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
-                <option value="assigned">Members + Unassigned</option>
-                <option value="unassigned">Only Unassigned</option>
-                <option value="all">All Registered (Class-wise)</option>
-              </select>
+          <div className="ca-enrollment-controls">
+            <div className="ca-search-input-wrapper">
+              <span className="icon">{Icons.search}</span>
+              <input
+                type="text"
+                placeholder="Search by ID or Name..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
             </div>
+            
+            <select className="ca-filter-select" value={filterType} onChange={e => setFilterType(e.target.value)}>
+              <option value="assigned">Members + Unassigned</option>
+              <option value="unassigned">Only Unassigned</option>
+              <option value="all">All Registered</option>
+            </select>
           </div>
 
-          <div style={{ position: 'relative', marginBottom: '20px' }}>
-            <input
-              type="text"
-              placeholder="Search by ID or Name..."
-              className="ad-input"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ paddingLeft: '40px' }}
-            />
-            <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '20px', color: '#94a3b8' }}>{Icons.search}</div>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <table className="ad-table">
+          <div className="ca-table-container">
+            <table className="ca-table">
               <thead>
                 <tr>
                   <th>ID</th>
@@ -342,49 +332,43 @@ export default function ClassAllocation() {
                   return (
                     <React.Fragment key={ch.id}>
                       {showHeader && (
-                        <tr style={{ backgroundColor: '#f1f5f9' }}>
-                          <td colSpan="4" style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <tr className="ca-group-header">
+                          <td colSpan="4">
                             {ch.className ? `📁 ${ch.className}` : '⚪ Unassigned Children'}
                           </td>
                         </tr>
                       )}
                       <tr>
-                        <td><span style={{ fontFamily: 'monospace', fontWeight: 600 }}>CH-{String(ch.id).padStart(3, '0')}</span></td>
-                        <td style={{ fontWeight: 500 }}>{ch.first_name} {ch.last_name}</td>
+                        <td><span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#64748b' }}>CH-{String(ch.id).padStart(3, '0')}</span></td>
+                        <td style={{ fontWeight: 600, color: '#1e293b' }}>{ch.first_name} {ch.last_name}</td>
                         <td>
                           {ch.className ? (
-                            <span className={`status-badge active`}>{ch.className}</span>
+                            <span className="ca-badge active">{ch.className}</span>
                           ) : (
-                            <span className={`status-badge pending`}>Unassigned</span>
+                            <span className="ca-badge pending">Unassigned</span>
                           )}
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                            {/* 1. REMOVE BUTTON (Shows if they have ANY class) */}
+                          <div className="ca-action-wrap">
+                            {/* 1. REMOVE BUTTON */}
                             {ch.class_id && (
                               <button
                                 onClick={() => handleToggleChild(ch.id, null)}
-                                className="action-btn delete"
-                                style={{ padding: '6px 12px', fontSize: '11px' }}
+                                className="ca-action-btn delete"
+                                title={`Remove from ${ch.className}`}
                               >
-                                Remove from {ch.className}
+                                Remove
                               </button>
                             )}
 
-                            {/* 2. ASSIGN/MOVE BUTTON (Shows if not in currently selected class) */}
+                            {/* 2. ASSIGN/MOVE BUTTON */}
                             {(!ch.class_id || ch.class_id != selectedClassId) && (
                               <button
                                 onClick={() => handleToggleChild(ch.id, selectedClassId)}
-                                className="action-btn approve"
+                                className={`ca-action-btn ${ch.class_id ? 'move' : 'assign'}`}
                                 disabled={!selectedClass}
-                                style={{ 
-                                  padding: '6px 12px', 
-                                  fontSize: '11px',
-                                  backgroundColor: ch.class_id ? '#6366f1' : 'var(--ad-accent)', // Use Indigo for 'Move' and Accent for 'Assign'
-                                  opacity: !selectedClass ? 0.5 : 1 
-                                }}
                               >
-                                {ch.class_id ? `Move to ${selectedClass?.name || 'Class'}` : `Assign to ${selectedClass?.name || 'Class'}`}
+                                {ch.class_id ? `Move` : `Assign`}
                               </button>
                             )}
                           </div>
@@ -396,7 +380,7 @@ export default function ClassAllocation() {
                 {childList.length === 0 && (
                   <tr>
                     <td colSpan="4" style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
-                      No matching children found.
+                      <div style={{ fontSize: '15px' }}>No matching children found.</div>
                     </td>
                   </tr>
                 )}
@@ -426,7 +410,7 @@ function AddClassModal({ onClose, onSave, teachers, currentYearId }) {
           ...data,
           capacity: Number(data.capacity),
           teacherId: data.teacherId || null,
-          academicYearId: currentYearId // Pass current year context
+          academicYearId: currentYearId
         }),
       });
       if (res.ok) onSave();
@@ -434,26 +418,26 @@ function AddClassModal({ onClose, onSave, teachers, currentYearId }) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div className="ad-form-card" style={{ width: '400px' }}>
+    <div className="ca-modal-overlay">
+      <div className="ca-modal-content">
         <h2>Create New Class</h2>
         <form onSubmit={submit}>
-          <div className="ad-form-group">
+          <div className="ca-form-group">
             <label>Name</label>
             <input className="ad-input" value={data.name} onChange={e => setData({ ...data, name: e.target.value })} required placeholder="e.g. Class C" />
           </div>
-          <div className="ad-form-group">
+          <div className="ca-form-group">
             <label>Capacity</label>
             <input type="number" className="ad-input" value={data.capacity} onChange={e => setData({ ...data, capacity: e.target.value })} required />
           </div>
-          <div className="ad-form-group">
+          <div className="ca-form-group">
             <label>Initial Teacher</label>
             <select className="ad-select" value={data.teacherId} onChange={e => setData({ ...data, teacherId: e.target.value })}>
               <option value="">Select Later</option>
               {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
-          <div className="ad-form-actions">
+          <div className="ca-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn-primary">Create</button>
           </div>

@@ -37,6 +37,8 @@ import TeacherHealthInfo from "./pages/TeacherHealthInfo";
 import TeacherClassChildren from "./pages/TeacherClassChildren";
 import TeacherNotifications from "./pages/TeacherNotifications";
 import TeacherAddHomework from "./pages/TeacherAddHomework";
+import TeacherHomeworkTracking from "./pages/TeacherHomeworkTracking";
+
 
 import ParentLayout from "./components/ParentLayout";
 import ChildProfile from "./pages/ChildProfile";
@@ -130,6 +132,8 @@ function App() {
           <Route path="homework" element={<TeacherHomework />} />
           <Route path="homework/new" element={<TeacherAddHomework />} />
           <Route path="homework/edit/:id" element={<TeacherAddHomework />} />
+          <Route path="homework/tracking/:homeworkId" element={<TeacherHomeworkTracking />} />
+
           <Route path="behavior-reports" element={<TeacherBehaviorReports />} />
           <Route path="meal-planning" element={<TeacherMealPlanning />} />
           <Route path="health-info" element={<TeacherHealthInfo />} />

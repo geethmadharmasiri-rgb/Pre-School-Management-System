@@ -1455,7 +1455,7 @@ app.get("/api/children/:id", authRequired, async (req, res) => {
 });
 
 /* =========================
-   GET CHILD HOMEWORK
+   GET CHILD HOMEWORK (ENHANCED WITH SUBMISSION STATUS)
    GET /api/children/:id/homework
 ========================= */
 app.get("/api/children/:id/homework", authRequired, async (req, res) => {
@@ -1472,15 +1472,17 @@ app.get("/api/children/:id/homework", authRequired, async (req, res) => {
     }
 
     const [rows] = await db.query(`
-      SELECT h.*, u.name as teacherName
+      SELECT h.*, u.name as teacherName, 
+             s.id as submission_id, s.status as submission_status, s.submitted_at, s.feedback, s.marks, s.submission_text, s.file_path as submission_file_path
       FROM homework h
       JOIN classes cl ON h.class_id = cl.id
       JOIN children ch ON cl.id = ch.class_id
       LEFT JOIN teachers t ON cl.teacher_id = t.id
       LEFT JOIN users u ON t.user_id = u.id
+      LEFT JOIN homework_submissions s ON h.id = s.homework_id AND s.student_id = ?
       WHERE ch.id = ?
       ORDER BY h.due_date DESC
-    `, [childId]);
+    `, [childId, childId]);
 
     res.json(rows);
   } catch (err) {
@@ -1488,6 +1490,7 @@ app.get("/api/children/:id/homework", authRequired, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 /* =========================
    ADMIN UPDATE CHILD
@@ -1977,6 +1980,160 @@ app.get("/api/homework/:id", authRequired, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+/* =========================
+   HOMEWORK TRACKING & SUBMISSION API
+========================= */
+
+// Submit homework (Parent/Student)
+app.post("/api/homework/submit", authRequired, upload.single("submissionFile"), async (req, res) => {
+  try {
+    const { homeworkId, studentId, submissionText } = req.body;
+    const filePath = req.file ? req.file.path.replace(/\\/g, '/') : null;
+    const userRole = (req.user.role || "").toUpperCase();
+
+    // Authorization
+    if (userRole === "PARENT") {
+      const [parentRows] = await db.query("SELECT id FROM parents WHERE user_id = ?", [req.user.id]);
+      if (!parentRows.length) return res.status(403).json({ message: "Parent profile not found" });
+      const [linkRows] = await db.query("SELECT 1 FROM parent_child WHERE parent_id = ? AND child_id = ?", [parentRows[0].id, studentId]);
+      if (!linkRows.length) return res.status(403).json({ message: "Not authorized for this student" });
+    } else if (userRole !== "ADMIN") {
+      return res.status(403).json({ message: "Unauthorized submission" });
+    }
+
+    // Check if it's late
+    const [hwRows] = await db.query("SELECT due_date FROM homework WHERE id = ?", [homeworkId]);
+    if (!hwRows.length) return res.status(404).json({ message: "Homework not found" });
+    
+    const dueDate = new Date(hwRows[0].due_date);
+    // Set due date to end of day
+    dueDate.setHours(23, 59, 59, 999);
+    
+    const submittedAt = new Date();
+    const status = submittedAt > dueDate ? 'Late' : 'Submitted';
+
+    // Insert or update submission
+    const [existing] = await db.query("SELECT id, file_path FROM homework_submissions WHERE homework_id = ? AND student_id = ?", [homeworkId, studentId]);
+    
+    if (existing.length > 0) {
+      await db.query(`
+        UPDATE homework_submissions 
+        SET submission_text = ?, file_path = ?, submitted_at = ?, status = ?
+        WHERE id = ?
+      `, [submissionText, filePath || existing[0].file_path, submittedAt, status, existing[0].id]);
+    } else {
+      await db.query(`
+        INSERT INTO homework_submissions (homework_id, student_id, submission_text, file_path, status, submitted_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [homeworkId, studentId, submissionText, filePath, status, submittedAt]);
+    }
+
+    res.json({ message: "Homework submitted successfully!", status });
+
+    // Notify Teacher
+    try {
+      const [[hw]] = await db.query("SELECT title, class_id FROM homework WHERE id = ?", [homeworkId]);
+      const [[student]] = await db.query("SELECT first_name, last_name FROM children WHERE id = ?", [studentId]);
+      if (hw && student) {
+        const [[cls]] = await db.query("SELECT teacher_id FROM classes WHERE id = ?", [hw.class_id]);
+        if (cls && cls.teacher_id) {
+          const [[teacher]] = await db.query("SELECT user_id FROM teachers WHERE id = ?", [cls.teacher_id]);
+          if (teacher) {
+            await createNotification({
+              type: 'Homework',
+              audience: 'Teachers',
+              message: `New homework submission for "${hw.title}" from ${student.first_name} ${student.last_name}`,
+              target_user_id: teacher.user_id
+            });
+          }
+        }
+      }
+    } catch (notifErr) { console.error("Homework submission notification error:", notifErr); }
+  } catch (err) {
+    console.error("POST /api/homework/submit error:", err);
+    res.status(500).json({ message: "Server error during submission" });
+  }
+});
+
+// Get tracking for a specific homework (Teacher)
+app.get("/api/homework/tracking/:homeworkId", authRequired, async (req, res) => {
+  try {
+    const userRole = (req.user.role || "").toUpperCase();
+    if (userRole !== "TEACHER" && userRole !== "ADMIN") {
+        return res.status(403).json({ message: "Access denied" });
+    }
+    
+    const { homeworkId } = req.params;
+
+    // Get all students in the class of this homework
+    const [hwInfo] = await db.query("SELECT class_id, title FROM homework WHERE id = ?", [homeworkId]);
+    if (!hwInfo.length) return res.status(404).json({ message: "Homework not found" });
+    const { class_id, title } = hwInfo[0];
+
+    const [students] = await db.query(`
+      SELECT c.id, c.first_name, c.last_name,
+             s.id as submission_id, s.status, s.submitted_at, s.submission_text, s.file_path, s.feedback, s.marks
+      FROM children c
+      LEFT JOIN homework_submissions s ON c.id = s.student_id AND s.homework_id = ?
+      WHERE c.class_id = ?
+      ORDER BY c.first_name ASC
+    `, [homeworkId, class_id]);
+
+    res.json({ students, title });
+  } catch (err) {
+    console.error("GET /api/homework/tracking/:homeworkId error:", err);
+    res.status(500).json({ message: "Server error fetching tracking data" });
+  }
+});
+
+// Review/Grade submission (Teacher)
+app.put("/api/homework/review/:submissionId", authRequired, async (req, res) => {
+  try {
+    const userRole = (req.user.role || "").toUpperCase();
+    if (userRole !== "TEACHER" && userRole !== "ADMIN") {
+        return res.status(403).json({ message: "Access denied" });
+    }
+    
+    const { submissionId } = req.params;
+    const { feedback, marks } = req.body;
+
+    await db.query(`
+      UPDATE homework_submissions 
+      SET feedback = ?, marks = ?, status = 'Reviewed'
+      WHERE id = ?
+    `, [feedback, marks, submissionId]);
+
+    res.json({ message: "Submission reviewed successfully" });
+
+    // Notify Parent
+    try {
+      const [[sub]] = await db.query(`
+        SELECT h.title, c.first_name, hs.student_id 
+        FROM homework_submissions hs 
+        JOIN homework h ON hs.homework_id = h.id 
+        JOIN children c ON hs.student_id = c.id 
+        WHERE hs.id = ?
+      `, [submissionId]);
+      
+      if (sub) {
+        const [parents] = await db.query("SELECT user_id FROM parents p JOIN parent_child pc ON p.id = pc.parent_id WHERE pc.child_id = ? AND pc.status = 'approved'", [sub.student_id]);
+        for (const parent of parents) {
+          await createNotification({
+            type: 'Homework',
+            audience: 'Parents',
+            message: `Teacher has uploaded a review for "${sub.title}" (${sub.first_name}'s homework).`,
+            target_user_id: parent.user_id
+          });
+        }
+      }
+    } catch (notifErr) { console.error("Homework review notification error:", notifErr); }
+  } catch (err) {
+    console.error("PUT /api/homework/review/:submissionId error:", err);
+    res.status(500).json({ message: "Server error during review" });
+  }
+});
+
 
 /* =========================
    BEHAVIOR API
