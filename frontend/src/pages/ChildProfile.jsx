@@ -146,6 +146,15 @@ export default function ChildProfile() {
     };
 
 
+    const formatDisplayTime = (timeStr) => {
+        if (!timeStr) return '--:--';
+        const parts = timeStr.split(':');
+        const hour = parseInt(parts[0]);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour % 12 || 12;
+        return `${displayHour}:${parts[1]} ${ampm}`;
+    };
+
     const tabs = [
         { id: "overview", label: "Overview", icon: Icons.dashboard },
         { id: "attendance", label: "Attendance", icon: Icons.attendance },
@@ -204,6 +213,7 @@ export default function ChildProfile() {
     const [childPayment, setChildPayment] = useState(null);
     const [paymentHistory, setPaymentHistory] = useState([]);
     const [globalFee, setGlobalFee] = useState(5000);
+    const [attendanceHistory, setAttendanceHistory] = useState([]);
 
     const [submitting, setSubmitting] = useState(null);
     const [submissionText, setSubmissionText] = useState("");
@@ -283,12 +293,24 @@ export default function ChildProfile() {
             } catch (err) { console.error(err); }
         };
 
+        const fetchAttendanceHistory = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const res = await fetch(`http://localhost:5000/api/children/${id}/attendance`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await res.json();
+                setAttendanceHistory(Array.isArray(data) ? data : []);
+            } catch (err) { console.error(err); }
+        };
+
         fetchMealPlans();
         if (id) {
             fetchBehaviorReports();
             fetchHomework();
             fetchChildPaymentHistory();
             fetchGlobalFee();
+            fetchAttendanceHistory();
         }
     }, [id]);
 
@@ -339,17 +361,35 @@ export default function ChildProfile() {
     const renderContent = () => {
         switch (activeTab) {
             case "overview":
+                const lastPresent = attendanceHistory.find(a => a.status === 'Present');
+                const lastDateText = lastPresent ? new Date(lastPresent.date).toLocaleDateString() : 'N/A';
+                
+                // 7-day trend calculations
+                const last7Days = [...Array(7)].map((_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    const dStr = d.toISOString().split('T')[0];
+                    const record = attendanceHistory.find(a => a.date.split('T')[0] === dStr);
+                    return { date: d.toLocaleDateString('en-US', { weekday: 'short' }), status: record ? record.status : 'None' };
+                }).reverse();
+
                 return (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
                         <div className="ad-card" style={{ textAlign: 'left', alignItems: 'flex-start' }}>
                             <h3 style={{ marginBottom: '15px' }}>Attendance Progress</h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', width: '100%' }}>
                                 <div style={{ width: '100px', height: '100px', borderRadius: '50%', border: '8px solid #e0f2fe', borderTopColor: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 700 }}>
-                                    85%
+                                    {attendanceHistory.length > 0 ? 
+                                        Math.round((attendanceHistory.filter(a => a.status === 'Present').length / Math.max(attendanceHistory.length, 1)) * 100) : 0}%
                                 </div>
-                                <div>
+                                <div style={{ flex: 1 }}>
                                     <p style={{ margin: 0, fontWeight: 500 }}>Overall Presence</p>
-                                    <span style={{ fontSize: '12px', color: '#64748b' }}>Last present: Today</span>
+                                    <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                                        {last7Days.map((day, i) => (
+                                            <div key={i} title={`${day.date}: ${day.status}`} style={{ flex: 1, height: '20px', borderRadius: '4px', backgroundColor: day.status === 'Present' ? '#10b981' : day.status === 'Absent' ? '#ef4444' : '#f1f5f9' }}></div>
+                                        ))}
+                                    </div>
+                                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>Last 7 active days tracking</p>
                                 </div>
                             </div>
                         </div>
@@ -357,62 +397,74 @@ export default function ChildProfile() {
                             <h3 style={{ marginBottom: '15px' }}>Quick Status</h3>
                             <div style={{ width: '100%' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
-                                    <span>Payment</span>
-                                    <span style={{ 
-                                        fontWeight: 700, 
-                                        color: (childPayment?.display_status === 'Paid' || childPayment?.status === 'Verified') ? '#16a34a' : (childPayment?.display_status === 'Pending' ? '#b45309' : '#ef4444') 
-                                    }}>
-                                        {(childPayment?.display_status === 'Paid' || childPayment?.status === 'Verified') ? '✅ Paid' : (childPayment?.display_status === 'Pending' ? '⏳ Pending' : '⚠️ Due')}
+                                    <span>Current Status</span>
+                                    <span style={{ fontWeight: 700, color: lastPresent && new Date(lastPresent.date).toDateString() === new Date().toDateString() ? '#16a34a' : '#ef4444' }}>
+                                        {lastPresent && new Date(lastPresent.date).toDateString() === new Date().toDateString() ? 
+                                            (lastPresent.check_out_time ? 'Picked Up' : 'Present in School') : 'Not Marked Yet'}
                                     </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
-                                    <span>Health Alert</span>
-                                    <span style={{ color: '#ef4444', fontWeight: 600 }}>{childData.medical_conditions || "None"}</span>
+                                    <span>Last Presence</span>
+                                    <span style={{ fontWeight: 600 }}>{lastDateText}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
-                                    <span>Latest Note</span>
-                                    <span style={{ fontSize: '13px', color: '#64748b' }}>Healthy and active...</span>
+                                    <span>Guardian Contact</span>
+                                    <span style={{ fontSize: '13px', color: '#0ea5e9', fontWeight: 600 }}>{childData.guardian_phone || "---"}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 );
             case "attendance":
-                const history = [
-                    { date: "2024-01-24", time: "08:15 AM", status: "Present", validated: "Ms. Clara Perera" },
-                    { date: "2024-01-23", time: "08:22 AM", status: "Present", validated: "Ms. Clara Perera" },
-                    { date: "2024-01-22", time: "08:10 AM", status: "Present", validated: "Ms. Clara Perera" },
-                    { date: "2024-01-21", time: "---", status: "Absent", validated: "---" },
-                    { date: "2024-01-20", time: "08:30 AM", status: "Present", validated: "Mr. Erasha" },
-                ];
                 return (
                     <div className="table-container">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h3>Monthly Attendance - January 2026</h3>
-                            <button className="btn-secondary btn-small">Download Report</button>
+                            <h3>Daily Attendance History</h3>
+                            <div style={{ fontSize: '13px', color: '#64748b' }}>Records for the last 30 active days</div>
                         </div>
                         <table className="ad-table">
                             <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th>Check-in Time</th>
+                                    <th>Drop-off</th>
+                                    <th>Pick-up</th>
                                     <th>Status</th>
-                                    <th>Validated By</th>
+                                    <th>Method</th>
+                                    <th>Notes</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {history.map((record, i) => (
+                                {attendanceHistory.map((record, i) => (
                                     <tr key={i}>
-                                        <td>{record.date}</td>
-                                        <td style={{ fontWeight: 600, color: record.time === '---' ? '#94a3b8' : 'inherit' }}>{record.time}</td>
+                                        <td style={{ fontWeight: 600 }}>{new Date(record.date).toDateString()}</td>
+                                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{formatDisplayTime(record.check_in_time)}</td>
+                                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{formatDisplayTime(record.check_out_time)}</td>
                                         <td>
-                                            <span className={`status-badge ${record.status === 'Present' ? 'active' : 'inactive'}`}>
-                                                {record.status}
+                                            <span className={`status-badge ${record.status === 'Present' ? (record.check_out_time ? 'active' : 'approved') : 'inactive'}`} style={{ 
+                                                backgroundColor: record.status === 'Present' ? (record.check_out_time ? '#e0e7ff' : '#dcfce7') : '#fee2e2',
+                                                color: record.status === 'Present' ? (record.check_out_time ? '#4338ca' : '#15803d') : '#b91c1c',
+                                                display: 'flex', alignItems: 'center', gap: '5px'
+                                            }}>
+                                                {record.status === 'Present' ? (record.check_out_time ? '✅ Picked Up' : '🌅 In School') : `❌ Absent`}
                                             </span>
                                         </td>
-                                        <td style={{ fontSize: '13px', color: '#64748b' }}>{record.validated}</td>
+                                        <td>
+                                            <span style={{ fontSize: '10px', backgroundColor: '#f8fafc', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, color: '#64748b' }}>
+                                                {record.method || 'MANUAL'}
+                                            </span>
+                                        </td>
+                                        <td style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+                                            {record.remarks || '---'}
+                                        </td>
                                     </tr>
                                 ))}
+                                {attendanceHistory.length === 0 && (
+                                    <tr>
+                                        <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                                            No attendance records found.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

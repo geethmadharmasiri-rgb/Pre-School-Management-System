@@ -1420,6 +1420,36 @@ app.get("/api/teacher/profile", authRequired, async (req, res) => {
    GET SINGLE CHILD (Detail)
    GET /api/children/:id
 ========================= */
+app.get("/api/children/:id/attendance", authRequired, async (req, res) => {
+  try {
+    const childId = req.params.id;
+    const userRole = (req.user.role || "").toUpperCase();
+
+    // Authorization Check (Same as GET child profile)
+    if (userRole === "PARENT") {
+      const [parentRows] = await db.query("SELECT id FROM parents WHERE user_id = ?", [req.user.id]);
+      if (!parentRows.length) return res.status(403).json({ message: "Parent profile not found" });
+      const [linkRows] = await db.query("SELECT 1 FROM parent_child WHERE parent_id = ? AND child_id = ?", [parentRows[0].id, childId]);
+      if (!linkRows.length) return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const [rows] = await db.query(`
+      SELECT a.id, a.date, a.status, a.check_in_time, a.check_out_time, a.method, a.remarks, u.name as markedByName
+      FROM attendance a
+      LEFT JOIN teachers t ON a.marked_by = t.id
+      LEFT JOIN users u ON t.user_id = u.id
+      WHERE a.child_id = ?
+      ORDER BY a.date DESC
+      LIMIT 100
+    `, [childId]);
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 app.get("/api/children/:id", authRequired, async (req, res) => {
   try {
     const childId = req.params.id;
@@ -3617,21 +3647,73 @@ app.delete("/api/notifications/clear-all", authRequired, async (req, res) => {
 /* =========================
    ATTENDANCE API
 ========================= */
+app.get("/api/teacher/attendance", authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== "TEACHER") return res.status(403).json({ message: "Teacher access required" });
+    const { date, yearId } = req.query;
+    if (!date || !yearId) return res.status(400).json({ message: "Date and yearId are required" });
+
+    // 1. Find teacher's class for this year
+    const [tRows] = await db.query("SELECT id FROM teachers WHERE user_id = ?", [req.user.id]);
+    if (tRows.length === 0) return res.status(404).json({ message: "Teacher profile not found" });
+    const teacherId = tRows[0].id;
+
+    const [classRows] = await db.query("SELECT id, name FROM classes WHERE teacher_id = ? AND academic_year_id = ? LIMIT 1", [teacherId, yearId]);
+    if (classRows.length === 0) return res.json({ children: [], className: null });
+    const classId = classRows[0].id;
+
+    // 2. Fetch children with their attendance for the date
+    const [rows] = await db.query(`
+      SELECT c.id, c.first_name, c.last_name,
+             a.status, a.check_in_time, a.check_out_time, a.method, a.remarks
+      FROM children c
+      LEFT JOIN attendance a ON c.id = a.child_id AND a.date = ?
+      WHERE c.class_id = ?
+    `, [date, classId]);
+
+    res.json({ children: rows, className: classRows[0].name });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 app.post("/api/attendance", authRequired, async (req, res) => {
   try {
     if (req.user.role !== "TEACHER") return res.status(403).json({ message: "Teacher access required" });
 
-    const { date, attendanceData } = req.body; // array of { child_id, status, check_in_time }
+    const { date, attendanceData } = req.body; // array of { child_id, status, check_in_time, check_out_time, method, remarks }
 
     // Get teacher id
     const [tRows] = await db.query("SELECT id FROM teachers WHERE user_id = ?", [req.user.id]);
     const teacherId = tRows[0].id;
 
     for (const record of attendanceData) {
-      await db.query(
-        "INSERT INTO attendance (child_id, date, status, check_in_time, marked_by) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE status = ?, check_in_time = ?, marked_by = ?",
-        [record.child_id, date, record.status, record.check_in_time, teacherId, record.status, record.check_in_time, teacherId]
-      );
+      // Find class_id for record
+      const [[childInfo]] = await db.query("SELECT class_id FROM children WHERE id = ?", [record.child_id]);
+
+      await db.query(`
+        INSERT INTO attendance (child_id, class_id, date, status, check_in_time, check_out_time, marked_by, method, remarks) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) 
+        ON DUPLICATE KEY UPDATE 
+          status = VALUES(status), 
+          check_in_time = VALUES(check_in_time),
+          check_out_time = VALUES(check_out_time),
+          marked_by = ?,
+          method = VALUES(method),
+          remarks = VALUES(remarks)
+      `, [
+        record.child_id, 
+        childInfo?.class_id || null,
+        date, 
+        record.status, 
+        record.check_in_time || null, 
+        record.check_out_time || null, 
+        teacherId, 
+        record.method || 'MANUAL', 
+        record.remarks || null,
+        teacherId
+      ]);
 
       // Notify Parent
       try {
@@ -3641,7 +3723,7 @@ app.post("/api/attendance", authRequired, async (req, res) => {
           await createNotification({
               type: 'Attendance',
               audience: 'Parents',
-              message: `Your child ${child.first_name} has been marked ${record.status} for ${date}.`,
+              message: `Daily update: ${child.first_name} is marked ${record.status} for ${date}.${record.check_in_time ? ' (Dropped off)' : ''}${record.check_out_time ? ' (Picked up)' : ''}`,
               target_user_id: parent.user_id
           });
         }
@@ -3653,6 +3735,46 @@ app.post("/api/attendance", authRequired, async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
+});
+
+app.get("/api/parent/attendance/child/:id", authRequired, async (req, res) => {
+    try {
+        const childId = req.params.id;
+        const [rows] = await db.query(
+            "SELECT date, status, check_in_time, check_out_time, method, remarks FROM attendance WHERE child_id = ? ORDER BY date DESC LIMIT 31",
+            [childId]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+app.get("/api/teacher/attendance/history-summary", authRequired, async (req, res) => {
+    try {
+        if (req.user.role !== "TEACHER") return res.status(403).json({ message: "Teacher access required" });
+        const { yearId } = req.query;
+        
+        const [tRows] = await db.query("SELECT id FROM teachers WHERE user_id = ?", [req.user.id]);
+        const teacherId = tRows[0].id;
+
+        const [rows] = await db.query(`
+            SELECT a.date, 
+                   COUNT(CASE WHEN a.status = 'Present' THEN 1 END) as present_count,
+                   COUNT(CASE WHEN a.status = 'Absent' THEN 1 END) as absent_count,
+                   COUNT(CASE WHEN a.check_out_time IS NOT NULL THEN 1 END) as completed_count
+            FROM attendance a
+            JOIN classes cl ON a.class_id = cl.id
+            WHERE cl.teacher_id = ? AND cl.academic_year_id = ?
+            GROUP BY a.date
+            ORDER BY a.date DESC
+            LIMIT 30
+        `, [teacherId, yearId]);
+
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
 });
 
 
@@ -3842,6 +3964,9 @@ app.get("/api/admin/stats", authRequired, async (req, res) => {
 
 
 
+
+// Mobile Attendance App Routes (isolated module)
+app.use("/api/mobile", require("./routes/mobile-attendance.routes"));
 
 app.use((err, req, res, next) => {
   console.error("🔥 GLOBAL ERROR:", err);
